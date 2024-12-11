@@ -8,6 +8,8 @@ List<ChartSeries> toChartSeries(List<DataPoint> dataPoints) {
     ChartSeries(
       name: 'Accelleration x',
       dataPoints: dataPoints.map((dataPoint) {
+        print('a');
+        print(dataPoint.acceleration);
         return ChartDataPoint(value: dataPoint.acceleration[0]);
       }).toList(),
       color: Color.fromRGBO(116, 46, 149, 1),
@@ -15,6 +17,8 @@ List<ChartSeries> toChartSeries(List<DataPoint> dataPoints) {
     ChartSeries(
       name: 'Accelleration y',
       dataPoints: dataPoints.map((dataPoint) {
+        print('b');
+        print(dataPoint.acceleration);
         return ChartDataPoint(value: dataPoint.acceleration[1]);
       }).toList(),
       color: Color.fromRGBO(49, 46, 149, 1),
@@ -22,6 +26,8 @@ List<ChartSeries> toChartSeries(List<DataPoint> dataPoints) {
     ChartSeries(
       name: 'Accelleration z',
       dataPoints: dataPoints.map((dataPoint) {
+        print('c');
+        print(dataPoint.acceleration);
         return ChartDataPoint(value: dataPoint.acceleration[2]);
       }).toList(),
       color: Color.fromRGBO(116, 46, 49, 1),

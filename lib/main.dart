@@ -1,8 +1,6 @@
-import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:inertial_pde/chart.dart';
-import 'package:sensors_plus/sensors_plus.dart';
 import 'package:material_charts/material_charts.dart';
 
 import 'kalman_filter.dart';
@@ -85,7 +83,7 @@ class _PDRHomepageState extends State<PDRHomepage> {
                 series: toChartSeries(_dataPoints),
                 style: _chartStyle,
                 height: 500,
-                width: 400,
+                width: 300,
                 enableZoom: false,
                 enablePan: false,
               )
