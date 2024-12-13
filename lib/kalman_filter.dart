@@ -47,7 +47,7 @@ class KalmanFilter {
   KalmanFilter() {
     _time = Stopwatch()..start();
 
-    _dt = 5;
+    _dt = 0.05;
     _x = Vector.fromList([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
         dtype: DType.float64);
     _F = Matrix.fromList([
@@ -98,7 +98,6 @@ class KalmanFilter {
 
     Timer.periodic(Duration(microseconds: (_dt * 1000000).round()), (_) {
       predict();
-      print(_x);
       _controller.sink.add(DataPoint(
           _time.elapsed,
           Vector.fromList([_x[0], _x[1], _x[2]], dtype: DType.float64),
@@ -121,47 +120,15 @@ class KalmanFilter {
   correct(Vector z) {
     // TODO: make sure this isn't actually calculating the inverse
     // kalman gain
-
-    print(
-        '${_P.rowCount}x${_P.columnCount} * ${_H.transpose().rowCount}x${_H.transpose().columnCount}');
-    _P = Matrix.fromList([
-      [100.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-      [0.0, 100.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-      [0.0, 0.0, 100.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-      [0.0, 0.0, 0.0, 100.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-      [0.0, 0.0, 0.0, 0.0, 100.0, 0.0, 0.0, 0.0, 0.0],
-      [0.0, 0.0, 0.0, 0.0, 0.0, 100.0, 0.0, 0.0, 0.0],
-      [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 100.0, 0.0, 0.0],
-      [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 100.0, 0.0],
-      [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 100.0],
-    ], dtype: DType.float64);
-    // this is broken
-    // _H = Matrix.fromList([
-    //   [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0],
-    //   [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0],
-    //   [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0],
-    // ], dtype: DType.float64);
-    // this works, somehow
-    _H = Matrix.fromList([
-      // [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0],
-      [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0],
-      [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0],
-    ], dtype: DType.float64);
-    print(_P.dtype);
-    print(_H.dtype);
-    print(_H.transpose().dtype);
-    final a = _P * _H.transpose();
-    final c = _H * _P;
-    final d = c * _H.transpose();
-    final e = d * _R;
-    final K = a * e.inverse();
-    // final K = _P * _H.transpose() * (_H * _P * _H.transpose() + _R).inverse();
+    final K = _P * _H.transpose() * (_H * _P * _H.transpose() + _R).inverse();
     // update estimate
     _x = _x + K * (z - _H * _x);
     // update estimate uncertainty
-    _P = (Matrix.identity(K.rowCount) - K * _H) *
+    // TODO: don't calculate things twice
+    _P = (Matrix.identity(K.rowCount, dtype: DType.float64) - K * _H) *
             _P *
-            (Matrix.identity(K.rowCount) - K * _H).transpose() +
+            (Matrix.identity(K.rowCount, dtype: DType.float64) - K * _H)
+                .transpose() +
         K * _R * K.transpose();
   }
 
