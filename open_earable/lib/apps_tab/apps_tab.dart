@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:open_earable/apps_tab/earable_pdr/earable_pdr.dart';
 import 'package:open_earable/apps_tab/posture_tracker/model/earable_attitude_tracker.dart';
 import 'package:open_earable/apps_tab/posture_tracker/view/posture_tracker_view.dart';
 import 'package:open_earable/apps_tab/neck_stretch/view/stretch_app_view.dart';
@@ -32,6 +33,24 @@ class AppsTab extends StatelessWidget {
 
   static List<AppInfo> sampleApps(BuildContext context, OpenEarable openEarable) {
     return [
+      AppInfo(
+        logoPath: "lib/apps_tab/earable_pdr/assets/logo.png",
+        title: "PDR",
+        description: "Trace your Walked Route",
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => Material(
+                child: Theme(
+                  data: materialTheme,
+                  child: EarablePDR(openEarable),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
       AppInfo(
         logoPath: "lib/apps_tab/recorder/assets/logo.png",
         title: "Recorder",
