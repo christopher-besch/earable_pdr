@@ -64,6 +64,7 @@ dependencies:
   sensors_plus:
   material_charts:
   ml_linalg: ^13.12.6
+  pedometer: ^4.0.2
 
 dependency_overrides:
   intl: ^0.18.1
@@ -137,6 +138,7 @@ flutter:
     - lib/apps_tab/tightness/assets/
     - lib/apps_tab/jump_rope_counter/assets/
     - lib/apps_tab/step_counter/assets/
+    - lib/apps_tab/earable_pdr/assets/
 
   fonts:
     - family:  OpenEarableIcon

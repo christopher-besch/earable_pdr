@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:ml_linalg/linalg.dart';
 
@@ -10,6 +11,7 @@ class DataPoint {
   DataPoint(this.time, this.position, this.velocity, this.acceleration);
 }
 
+// Time is given in seconds, length in meters, speed in meters per second, pressure in hectopascal and angles in radians.
 class KalmanFilter {
   // time interval between update steps in seconds
   // while the sensor input is asynchronous and thus polled at different time intervals the update step is performed synchronously
@@ -19,24 +21,14 @@ class KalmanFilter {
   // current state:
   // position_x
   // position_y
-  // position_z
-  // velocity_x
-  // velocity_y
-  // velocity_z
-  // acceleration_x
-  // acceleration_y
-  // acceleration_z
+  // position_z (height)
+  // velocity
+  // heading
   late Vector _x;
-  // state transition matrix
-  late Matrix _F;
   // estimate covariance
   late Matrix _P;
   // process noise covariance
   late Matrix _Q;
-// observation matrix
-  late Matrix _H;
-  // measurement covariance
-  late Matrix _R;
 
   late Stopwatch _time;
 
@@ -47,56 +39,28 @@ class KalmanFilter {
     _time = Stopwatch()..start();
 
     _dt = 0.05;
-    _x = Vector.fromList([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-        dtype: DType.float64);
-    _F = Matrix.fromList([
-      [1.0, 0.0, 0.0, _dt, 0.0, 0.0, .5 * _dt, 0.0, 0.0],
-      [0.0, 1.0, 0.0, 0.0, _dt, 0.0, 0.0, .5 * _dt, 0.0],
-      [0.0, 0.0, 1.0, 0.0, 0.0, _dt, 0.0, 0.0, .5 * _dt],
-      [0.0, 0.0, 0.0, 1.0, 0.0, 0.0, _dt, 0.0, 0.0],
-      [0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, _dt, 0.0],
-      [0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, _dt],
-      [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0],
-      [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0],
-      [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0],
-    ], dtype: DType.float64);
-    // assume the starting position is correct -> high confidence
+    _x = Vector.fromList([0.0, 0.0, 0.0, 0.0, 0.0], dtype: DType.float64);
+    // assume the starting position and velocity is correct -> high confidence
+    // the height is likely completely wrong -> low confidence
     _P = Matrix.fromList([
-      [100.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-      [0.0, 100.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-      [0.0, 0.0, 100.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-      [0.0, 0.0, 0.0, 100.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-      [0.0, 0.0, 0.0, 0.0, 100.0, 0.0, 0.0, 0.0, 0.0],
-      [0.0, 0.0, 0.0, 0.0, 0.0, 100.0, 0.0, 0.0, 0.0],
-      [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 100.0, 0.0, 0.0],
-      [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 100.0, 0.0],
-      [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 100.0],
+      [100.0, 0.0, 0.0, 0.0, 0.0],
+      [0.0, 100.0, 0.0, 0.0, 0.0],
+      [0.0, 0.0, 100.0, 0.0, 0.0],
+      [0.0, 0.0, 0.0, 100.0, 0.0],
+      [0.0, 0.0, 0.0, 0.0, 0.00001],
     ], dtype: DType.float64);
     _Q = Matrix.fromList([
-      [0.01, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-      [0.0, 0.01, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-      [0.0, 0.0, 0.01, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-      [0.0, 0.0, 0.0, 0.01, 0.0, 0.0, 0.0, 0.0, 0.0],
-      [0.0, 0.0, 0.0, 0.0, 0.01, 0.0, 0.0, 0.0, 0.0],
-      [0.0, 0.0, 0.0, 0.0, 0.0, 0.01, 0.0, 0.0, 0.0],
-      [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.01, 0.0, 0.0],
-      [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.01, 0.0],
-      [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.01],
-    ], dtype: DType.float64);
-    // no rotation so far
-    _H = Matrix.fromList([
-      [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0],
-      [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0],
-      [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0],
-    ], dtype: DType.float64);
-    _R = Matrix.fromList([
-      [0.01, 0.0, 0.0],
-      [0.0, 0.01, 0.0],
-      [0.0, 0.0, 0.01],
+      [0.01, 0.0, 0.0, 0.0, 0.0],
+      [0.0, 0.01, 0.0, 0.0, 0.0],
+      [0.0, 0.0, 0.01, 0.0, 0.0],
+      [0.0, 0.0, 0.0, 0.01, 0.0],
+      [0.0, 0.0, 0.0, 0.0, 0.01],
     ], dtype: DType.float64);
 
     Timer.periodic(Duration(microseconds: (_dt * 1000000).round()), (_) {
       predict();
+      // TODO:
+      // correctPedometer();
       // _controller.sink.add(DataPoint(
       //     _time.elapsed,
       //     Vector.fromList([_x[0], _x[1], _x[2]], dtype: DType.float64),
@@ -105,35 +69,78 @@ class KalmanFilter {
     });
   }
 
-  correctMagnetometer(Vector z) {
+  void predict() {
+    // state transition matrix
+    final F = Matrix.fromList([
+      [1.0, 0.0, 0.0, _dt * cos(_x[4]), 0.0],
+      [0.0, 1.0, 0.0, _dt * sin(_x[4]), 0.0],
+      [0.0, 0.0, 1.0, 0.0, 0.0],
+      [0.0, 0.0, 0.0, 1.0, 0.0],
+      [0.0, 0.0, 0.0, 0.0, 1.0],
+    ], dtype: DType.float64);
+
+    // extrapolate state
+    // There is no input and thus no control matrix.
+    _x = (F * _x).toVector();
+
+    // extrapolate uncertainty
+    _P = F * _P * F.transpose() + _Q;
+  }
+
+  void correctMagnetometer(Vector z) {
     // TODO: implement
+    // observation matrix
+    var H = Matrix.fromList(
+      [
+        [0.0, 0.0, 0.0, 0.0, 1.0],
+      ],
+      dtype: DType.float64,
+    );
+    // measurement covariance
+    var R = Matrix.fromList(
+      [
+        [0.01],
+      ],
+      dtype: DType.float64,
+    );
+  }
+
+  void correctPedometer(Vector z) {
+    // TODO: implement
+    print(z);
+    // observation matrix
+    var H = Matrix.fromList(
+      [
+        [0.0, 0.0, 0.0, 1.0, 0.0],
+      ],
+      dtype: DType.float64,
+    );
+    // measurement covariance
+    var R = Matrix.fromList(
+      [
+        [0.01],
+      ],
+      dtype: DType.float64,
+    );
   }
 
   // measurement vector:
   // phone accelerometer x
   // phone accelerometer y
   // phone accelerometer z
-  correctAcceleration(Vector z) {
-    // TODO: make sure this isn't actually calculating the inverse
-    // kalman gain
-    final K = _P * _H.transpose() * (_H * _P * _H.transpose() + _R).inverse();
-    // update estimate
-    _x = _x + K * (z - _H * _x);
-    // update estimate uncertainty
-    // TODO: don't calculate things twice
-    _P = (Matrix.identity(K.rowCount, dtype: DType.float64) - K * _H) *
-            _P *
-            (Matrix.identity(K.rowCount, dtype: DType.float64) - K * _H)
-                .transpose() +
-        K * _R * K.transpose();
-  }
-
-  predict() {
-    // extrapolate state
-    // There is no input and thus no control matrix.
-    _x = (_F * _x).toVector();
-
-    // extrapolate uncertainty
-    _P = _F * _P * _F.transpose() + _Q;
+  void correctAcceleration(Vector z) {
+    // TODO: remove
+    // // TODO: make sure this isn't actually calculating the inverse
+    // // kalman gain
+    // final K = _P * _H.transpose() * (_H * _P * _H.transpose() + _R).inverse();
+    // // update estimate
+    // _x = _x + K * (z - _H * _x);
+    // // update estimate uncertainty
+    // // TODO: don't calculate things twice
+    // _P = (Matrix.identity(K.rowCount, dtype: DType.float64) - K * _H) *
+    //         _P *
+    //         (Matrix.identity(K.rowCount, dtype: DType.float64) - K * _H)
+    //             .transpose() +
+    //     K * _R * K.transpose();
   }
 }
