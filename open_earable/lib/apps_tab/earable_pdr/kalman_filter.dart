@@ -8,9 +8,14 @@ class DataPoint {
   Vector position;
   double velocity;
   double heading;
-  double total_steps;
+  double totalSteps;
   DataPoint(
-      this.time, this.position, this.velocity, this.heading, this.total_steps);
+    this.time,
+    this.position,
+    this.velocity,
+    this.heading,
+    this.totalSteps,
+  );
 }
 
 // Time is given in seconds, length in meters, speed in meters per second, pressure in hectopascal and angles in radians.

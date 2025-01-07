@@ -3,13 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:open_earable/apps_tab/earable_pdr/chart.dart';
 import 'package:ml_linalg/linalg.dart';
 import 'package:sensors_plus/sensors_plus.dart';
-import 'package:material_charts/material_charts.dart';
 import 'package:open_earable/ble/ble_controller.dart';
 import 'package:open_earable/shared/earable_not_connected_warning.dart';
 import 'dart:async';
 import 'package:open_earable_flutter/open_earable_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:fl_chart/fl_chart.dart';
 
 import 'package:pedometer/pedometer.dart';
 
@@ -33,21 +33,6 @@ class _EarablePDRState extends State<EarablePDR> {
 
   static const int _pointsToRemember = 100;
   List<DataPoint> _dataPoints = [];
-
-  final _chartStyle = MultiLineChartStyle(
-    backgroundColor: Colors.white,
-    colors: [Colors.blue, Colors.green, Colors.red],
-    smoothLines: false,
-    showPoints: false,
-    // tooltipStyle: const MultiLineTooltipStyle(
-    //   threshold: 20,
-    // ),
-    forceYAxisFromZero: true,
-    // crosshair: CrosshairConfig(
-    //   enabled: true,
-    //   lineColor: Colors.grey.withOpacity(0.5),
-    // ),
-  );
 
   @override
   void initState() {
@@ -138,16 +123,33 @@ class _EarablePDRState extends State<EarablePDR> {
               style: TextStyle(fontSize: 20),
             ),
             if (_dataPoints.isNotEmpty)
-              MultiLineChart(
-                series: toChartSeries(_dataPoints),
-                style: _chartStyle,
-                height: 500,
-                width: 300,
-                enableZoom: false,
-                enablePan: false,
+              AspectRatio(
+                aspectRatio: 1.5,
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 24.0),
+                  child: LineChart(
+                    LineChartData(
+                      // minX: 0,
+                      // maxX: 100,
+                      // minY: -1,
+                      // maxY: 1,
+                      // lineTouchData: const LineTouchData(enabled: false),
+                      // clipData: const FlClipData.all(),
+                      // gridData: const FlGridData(
+                      //   show: true,
+                      //   drawVerticalLine: false,
+                      // ),
+                      // borderData: FlBorderData(show: false),
+                      lineBarsData: toLineBarsData(_dataPoints),
+                      // titlesData: const FlTitlesData(
+                      //   show: false,
+                      // ),
+                    ),
+                  ),
+                ),
               )
             else
-              Text('No Data', style: TextStyle(fontSize: 20))
+              Text('No Data', style: TextStyle(fontSize: 20)),
           ],
         ),
       ),

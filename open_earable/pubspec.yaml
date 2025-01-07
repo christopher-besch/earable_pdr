@@ -62,9 +62,9 @@ dependencies:
 
   # earable_pdr dependencies
   sensors_plus:
-  material_charts: ^0.0.25
   ml_linalg: ^13.12.6
   pedometer: ^4.0.2
+  fl_chart: ^0.70.1
 
 dependency_overrides:
   intl: ^0.18.1

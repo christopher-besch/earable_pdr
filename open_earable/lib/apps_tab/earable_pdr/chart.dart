@@ -1,45 +1,37 @@
-import 'package:flutter/material.dart';
-import 'package:material_charts/material_charts.dart';
+import 'package:fl_chart/fl_chart.dart';
 
 import 'kalman_filter.dart';
 
-List<ChartSeries> toChartSeries(List<DataPoint> dataPoints) {
-  var chartSeries = [
+List<LineChartBarData> toLineBarsData(List<DataPoint> dataPoints) {
+  var lineBars = [
+    LineChartBarData(
+      spots: dataPoints.map((dataPoint) {
+        return FlSpot(dataPoint.time.inMilliseconds / 1000, dataPoint.velocity);
+      }).toList(),
+      dotData: const FlDotData(
+        show: false,
+      ),
+      // gradient: LinearGradient(
+      //   colors: [widget.cosColor.withValues(alpha: 0), widget.cosColor],
+      //   stops: const [0.1, 1.0],
+      // ),
+      barWidth: 4,
+      isCurved: false,
+    ),
     // ChartSeries(
-    //   name: 'Position x',
+    //   name: 'Velocity',
     //   dataPoints: dataPoints.map((dataPoint) {
-    //     return ChartDataPoint(value: dataPoint.position[0]);
-    //   }).toList(),
-    //   color: Color.fromRGBO(116, 46, 149, 1),
-    // ),
-    // ChartSeries(
-    //   name: 'Position y',
-    //   dataPoints: dataPoints.map((dataPoint) {
-    //     return ChartDataPoint(value: dataPoint.position[1]);
-    //   }).toList(),
-    //   color: Color.fromRGBO(49, 46, 149, 1),
-    // ),
-    // ChartSeries(
-    //   name: 'Position z',
-    //   dataPoints: dataPoints.map((dataPoint) {
-    //     return ChartDataPoint(value: dataPoint.position[2]);
+    //     return ChartDataPoint(value: dataPoint.velocity);
     //   }).toList(),
     //   color: Color.fromRGBO(116, 46, 49, 1),
     // ),
-    ChartSeries(
-      name: 'Velocity',
-      dataPoints: dataPoints.map((dataPoint) {
-        return ChartDataPoint(value: dataPoint.velocity);
-      }).toList(),
-      color: Color.fromRGBO(116, 46, 49, 1),
-    ),
-    ChartSeries(
-      name: 'Total Steps',
-      dataPoints: dataPoints.map((dataPoint) {
-        return ChartDataPoint(value: dataPoint.total_steps);
-      }).toList(),
-      color: Color.fromRGBO(116, 46, 149, 1),
-    ),
+    // ChartSeries(
+    //   name: 'Total Steps',
+    //   dataPoints: dataPoints.map((dataPoint) {
+    //     return ChartDataPoint(value: dataPoint.total_steps);
+    //   }).toList(),
+    //   color: Color.fromRGBO(116, 46, 149, 1),
+    // ),
   ];
-  return chartSeries;
+  return lineBars;
 }
