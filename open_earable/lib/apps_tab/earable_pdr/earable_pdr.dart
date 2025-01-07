@@ -29,6 +29,7 @@ class _EarablePDRState extends State<EarablePDR> {
   late StreamSubscription _earableIMUSubscription;
   late StreamSubscription<AccelerometerEvent> _phoneAccelerometerSubscription;
   late StreamSubscription<StepCount> _stepCountSubscription;
+  late StreamSubscription<PedestrianStatus> _pedestrianStateSubscription;
 
   static const int _pointsToRemember = 100;
   List<DataPoint> _dataPoints = [];
@@ -41,7 +42,7 @@ class _EarablePDRState extends State<EarablePDR> {
     // tooltipStyle: const MultiLineTooltipStyle(
     //   threshold: 20,
     // ),
-    forceYAxisFromZero: false,
+    forceYAxisFromZero: true,
     // crosshair: CrosshairConfig(
     //   enabled: true,
     //   lineColor: Colors.grey.withOpacity(0.5),
@@ -92,12 +93,24 @@ class _EarablePDRState extends State<EarablePDR> {
 
       // TODO: handle error
       _stepCountSubscription = Pedometer.stepCountStream.listen((event) {
-        print(event);
-        // _kalmanFilter.onStepEvent();
+        _kalmanFilter.correctPedometer(
+          Vector.fromList([event.steps], dtype: DType.float64),
+        );
       })
         ..onError((e) {
           print(e);
         });
+
+      // TODO: handle error
+      _pedestrianStateSubscription =
+          Pedometer.pedestrianStatusStream.listen((event) {
+        if (event.status == 'stopped') {
+          _kalmanFilter.correctWalkingStopped();
+        }
+      })
+            ..onError((e) {
+              print(e);
+            });
     });
   }
 
@@ -107,6 +120,7 @@ class _EarablePDRState extends State<EarablePDR> {
     _earableIMUSubscription.cancel();
     _phoneAccelerometerSubscription.cancel();
     _stepCountSubscription.cancel();
+    _pedestrianStateSubscription.cancel();
   }
 
   @override

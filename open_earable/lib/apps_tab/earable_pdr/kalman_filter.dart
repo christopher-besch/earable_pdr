@@ -6,9 +6,11 @@ import 'package:ml_linalg/linalg.dart';
 class DataPoint {
   Duration time;
   Vector position;
-  Vector velocity;
-  Vector acceleration;
-  DataPoint(this.time, this.position, this.velocity, this.acceleration);
+  double velocity;
+  double heading;
+  double total_steps;
+  DataPoint(
+      this.time, this.position, this.velocity, this.heading, this.total_steps);
 }
 
 // Time is given in seconds, length in meters, speed in meters per second, pressure in hectopascal and angles in radians.
@@ -24,6 +26,8 @@ class KalmanFilter {
   // position_z (height)
   // velocity
   // heading
+  // steps taken
+  // step size
   late Vector _x;
   // estimate covariance
   late Matrix _P;
@@ -39,45 +43,67 @@ class KalmanFilter {
     _time = Stopwatch()..start();
 
     _dt = 0.05;
-    _x = Vector.fromList([0.0, 0.0, 0.0, 0.0, 0.0], dtype: DType.float64);
+    _x = Vector.fromList(
+      [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.82],
+      dtype: DType.float64,
+    );
     // assume the starting position and velocity is correct -> high confidence
-    // the height is likely completely wrong -> low confidence
-    _P = Matrix.fromList([
-      [100.0, 0.0, 0.0, 0.0, 0.0],
-      [0.0, 100.0, 0.0, 0.0, 0.0],
-      [0.0, 0.0, 100.0, 0.0, 0.0],
-      [0.0, 0.0, 0.0, 100.0, 0.0],
-      [0.0, 0.0, 0.0, 0.0, 0.00001],
-    ], dtype: DType.float64);
-    _Q = Matrix.fromList([
-      [0.01, 0.0, 0.0, 0.0, 0.0],
-      [0.0, 0.01, 0.0, 0.0, 0.0],
-      [0.0, 0.0, 0.01, 0.0, 0.0],
-      [0.0, 0.0, 0.0, 0.01, 0.0],
-      [0.0, 0.0, 0.0, 0.0, 0.01],
-    ], dtype: DType.float64);
+    // the height and step count is likely completely wrong -> low confidence
+    // the step size is assumed completely constant
+    _P = Matrix.fromList(
+      [
+        [0.01, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        [0.0, 0.01, 0.0, 0.0, 0.0, 0.0, 0.0],
+        [0.0, 0.0, 0.01, 0.0, 0.0, 0.0, 0.0],
+        [0.0, 0.0, 0.0, 0.01, 0.0, 0.0, 0.0],
+        [0.0, 0.0, 0.0, 0.0, 0.01, 0.0, 0.0],
+        [0.0, 0.0, 0.0, 0.0, 0.0, 1000.0, 0.0],
+        [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+      ],
+      dtype: DType.float64,
+    );
+    _Q = Matrix.fromList(
+      [
+        [0.01, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        [0.0, 0.01, 0.0, 0.0, 0.0, 0.0, 0.0],
+        [0.0, 0.0, 0.01, 0.0, 0.0, 0.0, 0.0],
+        [0.0, 0.0, 0.0, 0.01, 0.0, 0.0, 0.0],
+        [0.0, 0.0, 0.0, 0.0, 0.01, 0.0, 0.0],
+        [0.0, 0.0, 0.0, 0.0, 0.0, 0.01, 0.0],
+        [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+      ],
+      dtype: DType.float64,
+    );
 
     Timer.periodic(Duration(microseconds: (_dt * 1000000).round()), (_) {
       predict();
-      // TODO:
-      // correctPedometer();
-      // _controller.sink.add(DataPoint(
-      //     _time.elapsed,
-      //     Vector.fromList([_x[0], _x[1], _x[2]], dtype: DType.float64),
-      //     Vector.fromList([_x[3], _x[3], _x[5]], dtype: DType.float64),
-      //     Vector.fromList([_x[6], _x[7], _x[8]], dtype: DType.float64)));
+      print(_x);
+      _controller.sink.add(
+        DataPoint(
+          _time.elapsed,
+          Vector.fromList([_x[0], _x[1], _x[2]], dtype: DType.float64),
+          _x[3],
+          _x[4],
+          _x[5],
+        ),
+      );
     });
   }
 
   void predict() {
     // state transition matrix
-    final F = Matrix.fromList([
-      [1.0, 0.0, 0.0, _dt * cos(_x[4]), 0.0],
-      [0.0, 1.0, 0.0, _dt * sin(_x[4]), 0.0],
-      [0.0, 0.0, 1.0, 0.0, 0.0],
-      [0.0, 0.0, 0.0, 1.0, 0.0],
-      [0.0, 0.0, 0.0, 0.0, 1.0],
-    ], dtype: DType.float64);
+    final F = Matrix.fromList(
+      [
+        [1.0, 0.0, 0.0, _dt * cos(_x[4]), 0.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0, _dt * sin(_x[4]), 0.0, 0.0, 0.0],
+        [0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0],
+        [0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
+        [0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0],
+        [0.0, 0.0, 0.0, _dt * _x[6], 0.0, 1.0, 0.0],
+        [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0],
+      ],
+      dtype: DType.float64,
+    );
 
     // extrapolate state
     // There is no input and thus no control matrix.
@@ -92,7 +118,7 @@ class KalmanFilter {
     // observation matrix
     var H = Matrix.fromList(
       [
-        [0.0, 0.0, 0.0, 0.0, 1.0],
+        [0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0],
       ],
       dtype: DType.float64,
     );
@@ -105,26 +131,68 @@ class KalmanFilter {
     );
   }
 
+  // measurement vector z:
+  // total steps until now
   void correctPedometer(Vector z) {
-    // TODO: implement
-    print(z);
     // observation matrix
     var H = Matrix.fromList(
       [
-        [0.0, 0.0, 0.0, 1.0, 0.0],
+        [0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0],
       ],
       dtype: DType.float64,
     );
     // measurement covariance
     var R = Matrix.fromList(
       [
-        [0.01],
+        [0.0],
       ],
       dtype: DType.float64,
     );
+
+    // kalman gain
+    final K = _P * H.transpose() * (H * _P * H.transpose() + R).inverse();
+    // update estimate
+    _x = _x + K * (z - H * _x);
+    // update estimate uncertainty
+    // TODO: don't calculate things twice
+    _P = (Matrix.identity(K.rowCount, dtype: DType.float64) - K * H) *
+            _P *
+            (Matrix.identity(K.rowCount, dtype: DType.float64) - K * H)
+                .transpose() +
+        K * R * K.transpose();
   }
 
-  // measurement vector:
+  void correctWalkingStopped() {
+    var z = Vector.fromList([0.0], dtype: DType.float64);
+    // observation matrix
+    var H = Matrix.fromList(
+      [
+        [0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
+      ],
+      dtype: DType.float64,
+    );
+    // measurement covariance
+    var R = Matrix.fromList(
+      [
+        [0.0],
+      ],
+      dtype: DType.float64,
+    );
+
+    // kalman gain
+    final K = _P * H.transpose() * (H * _P * H.transpose() + R).inverse();
+    // update estimate
+    _x = _x + K * (z - H * _x);
+    // update estimate uncertainty
+    // TODO: don't calculate things twice
+    _P = (Matrix.identity(K.rowCount, dtype: DType.float64) - K * H) *
+            _P *
+            (Matrix.identity(K.rowCount, dtype: DType.float64) - K * H)
+                .transpose() +
+        K * R * K.transpose();
+  }
+
+  // measurement vector z:
   // phone accelerometer x
   // phone accelerometer y
   // phone accelerometer z
