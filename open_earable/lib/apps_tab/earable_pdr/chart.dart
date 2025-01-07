@@ -18,6 +18,23 @@ List<LineChartBarData> toLineBarsData(List<DataPoint> dataPoints) {
       barWidth: 4,
       isCurved: false,
     ),
+    LineChartBarData(
+      spots: dataPoints.map((dataPoint) {
+        return FlSpot(
+          dataPoint.time.inMilliseconds / 1000,
+          dataPoint.position[2],
+        );
+      }).toList(),
+      dotData: const FlDotData(
+        show: false,
+      ),
+      // gradient: LinearGradient(
+      //   colors: [widget.cosColor.withValues(alpha: 0), widget.cosColor],
+      //   stops: const [0.1, 1.0],
+      // ),
+      barWidth: 4,
+      isCurved: false,
+    ),
     // ChartSeries(
     //   name: 'Velocity',
     //   dataPoints: dataPoints.map((dataPoint) {

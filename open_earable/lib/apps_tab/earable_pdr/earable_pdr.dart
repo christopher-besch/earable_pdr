@@ -27,7 +27,7 @@ class EarablePDR extends StatefulWidget {
 class _EarablePDRState extends State<EarablePDR> {
   late KalmanFilter _kalmanFilter;
   late StreamSubscription _earableIMUSubscription;
-  late StreamSubscription<AccelerometerEvent> _phoneAccelerometerSubscription;
+  late StreamSubscription<BarometerEvent> _phoneBarometerSubscription;
   late StreamSubscription<StepCount> _stepCountSubscription;
   late StreamSubscription<PedestrianStatus> _pedestrianStateSubscription;
 
@@ -37,44 +37,47 @@ class _EarablePDRState extends State<EarablePDR> {
   @override
   void initState() {
     super.initState();
+
+    _kalmanFilter = KalmanFilter()
+      ..stream.listen((dataPoint) {
+        setState(() {
+          _dataPoints.add(dataPoint);
+          _dataPoints = _dataPoints
+              .sublist(max(0, _dataPoints.length - _pointsToRemember));
+        });
+      });
+
+    if (widget.openEarable.bleManager.connected) {
+      print("connected to earable");
+      OpenEarableSensorConfig config =
+          OpenEarableSensorConfig(sensorId: 0, samplingRate: 30, latency: 0);
+      widget.openEarable.sensorManager.writeSensorConfig(config);
+      _earableIMUSubscription = widget.openEarable.sensorManager
+          .subscribeToSensorData(0)
+          .listen((data) {
+        _kalmanFilter.correctHeading(
+          data["EULER"]["YAW"],
+          // data["EULER"]["ROLL"],
+          // data["EULER"]["PITCH"],
+          // data["MAG"]["X"],
+          // data["MAG"]["Y"],
+          // data["MAG"]["Z"],
+        );
+      });
+    } else {
+      print("failed to connect to earable");
+    }
+
+    // TODO: handle error
+    _phoneBarometerSubscription = barometerEventStream().listen((event) {
+      _kalmanFilter.correctBarometer(event.pressure);
+    });
+
     _checkActivityRecognitionPermission().then((granted) {
       if (!granted) {
         print("TODO: this is bad");
       }
       print("lets go");
-
-      _kalmanFilter = KalmanFilter()
-        ..stream.listen((dataPoint) {
-          setState(() {
-            _dataPoints.add(dataPoint);
-            _dataPoints = _dataPoints
-                .sublist(max(0, _dataPoints.length - _pointsToRemember));
-          });
-        });
-
-      // TODO: use
-      // OpenEarableSensorConfig config =
-      //     OpenEarableSensorConfig(sensorId: 0, samplingRate: 30, latency: 0);
-      // widget.openEarable.sensorManager.writeSensorConfig(config);
-      // _earableIMUSubscription = widget.openEarable.sensorManager
-      //     .subscribeToSensorData(0)
-      //     .listen((data) {
-      //   double mx = data["MAG"]["X"] as double;
-      //   double my = data["MAG"]["Y"] as double;
-      //   double mz = data["MAG"]["Z"] as double;
-
-      //   _kalmanFilter.correctMagnetometer(
-      //     Vector.fromList([mx, my, mz], dtype: DType.float64),
-      //   );
-      // });
-
-      // TODO: handle error
-      _phoneAccelerometerSubscription =
-          accelerometerEventStream().listen((event) {
-        _kalmanFilter.correctAcceleration(
-          Vector.fromList([event.x, event.y, event.z], dtype: DType.float64),
-        );
-      });
 
       // TODO: handle error
       _stepCountSubscription = Pedometer.stepCountStream.listen((event) {
@@ -103,7 +106,7 @@ class _EarablePDRState extends State<EarablePDR> {
   void dispose() {
     super.dispose();
     _earableIMUSubscription.cancel();
-    _phoneAccelerometerSubscription.cancel();
+    _phoneBarometerSubscription.cancel();
     _stepCountSubscription.cancel();
     _pedestrianStateSubscription.cancel();
   }

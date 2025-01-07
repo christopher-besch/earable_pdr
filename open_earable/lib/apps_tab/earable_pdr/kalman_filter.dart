@@ -82,6 +82,7 @@ class KalmanFilter {
 
     Timer.periodic(Duration(microseconds: (_dt * 1000000).round()), (_) {
       predict();
+      // TODO: remove
       print(_x);
       _controller.sink.add(
         DataPoint(
@@ -104,7 +105,7 @@ class KalmanFilter {
         [0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0],
         [0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
         [0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0],
-        [0.0, 0.0, 0.0, _dt * _x[6], 0.0, 1.0, 0.0],
+        [0.0, 0.0, 0.0, _dt / _x[6], 0.0, 1.0, 0.0],
         [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0],
       ],
       dtype: DType.float64,
@@ -118,9 +119,68 @@ class KalmanFilter {
     _P = F * _P * F.transpose() + _Q;
   }
 
-  void correctMagnetometer(Vector z) {
-    // TODO: implement
+  void correctBarometer(double pressure) {
+    var z = Vector.fromList(
+      [44307.7 * (1 - pow(pressure / 1013.25, 0.190284))],
+      dtype: DType.float64,
+    );
     // observation matrix
+    var H = Matrix.fromList(
+      [
+        [0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
+      ],
+      dtype: DType.float64,
+    );
+    // measurement covariance
+    var R = Matrix.fromList(
+      [
+        [0.1],
+      ],
+      dtype: DType.float64,
+    );
+
+    // kalman gain
+    final K = _P * H.transpose() * (H * _P * H.transpose() + R).inverse();
+    // update estimate
+    _x = _x + K * (z - H * _x);
+    // update estimate uncertainty
+    // TODO: don't calculate things twice
+    _P = (Matrix.identity(K.rowCount, dtype: DType.float64) - K * H) *
+            _P *
+            (Matrix.identity(K.rowCount, dtype: DType.float64) - K * H)
+                .transpose() +
+        K * R * K.transpose();
+  }
+
+  void correctHeading(
+    double yaw,
+    // http://www.brokking.net/YMFC-32/YMFC-32_document_1.pdf
+    // double roll,
+    // double pitch,
+    // double magnetometerX,
+    // double magnetometerY,
+    // double magnetometerZ,
+  ) {
+    // double magnetometerXCorrected = magnetometerX * cos(pitch) +
+    //     magnetometerY * sin(roll) * sin(pitch) -
+    //     magnetometerZ * cos(roll) * sin(pitch);
+    // double magnetometerYCorrected =
+    //     magnetometerY * cos(roll) + magnetometerZ * sin(roll);
+    // var z = Vector.fromList(
+    //   [atan2(-magnetometerYCorrected, magnetometerXCorrected)],
+    //   dtype: DType.float64,
+    // );
+    // print(z[0]);
+    // print('${magnetometerXCorrected}\t${magnetometerYCorrected}');
+    // print('${magnetometerX}\t${magnetometerY}\t${magnetometerZ}');
+    // print('${roll}\t${pitch}');
+    // observation matrix
+
+    var z = Vector.fromList(
+      [yaw],
+      dtype: DType.float64,
+    );
+
     var H = Matrix.fromList(
       [
         [0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0],
@@ -134,6 +194,18 @@ class KalmanFilter {
       ],
       dtype: DType.float64,
     );
+
+    // kalman gain
+    final K = _P * H.transpose() * (H * _P * H.transpose() + R).inverse();
+    // update estimate
+    _x = _x + K * (z - H * _x);
+    // update estimate uncertainty
+    // TODO: don't calculate things twice
+    _P = (Matrix.identity(K.rowCount, dtype: DType.float64) - K * H) *
+            _P *
+            (Matrix.identity(K.rowCount, dtype: DType.float64) - K * H)
+                .transpose() +
+        K * R * K.transpose();
   }
 
   // measurement vector z:
