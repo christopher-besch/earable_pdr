@@ -29,6 +29,9 @@ class KalmanFilter {
 
   bool _walking = true;
 
+  late Timer _predictTimer;
+  late Timer _reportTimer;
+
   // current state:
   // position_x
   // position_y
@@ -45,6 +48,7 @@ class KalmanFilter {
 
   late Stopwatch _time;
 
+  // This stream outputs the current state of the kalman filter.
   final StreamController<DataPoint> _controller = StreamController<DataPoint>();
   get stream => _controller.stream;
 
@@ -84,12 +88,16 @@ class KalmanFilter {
       dtype: DType.float64,
     );
 
-    Timer.periodic(Duration(microseconds: (_dt * 1000000).round()), (_) {
+    _predictTimer =
+        Timer.periodic(Duration(microseconds: (_dt * 1000000).round()), (_) {
       predict();
-      // I'm gettin the stopped signal only once. Remember it as there might be late step count updates.
+      // I'm getting the stopped signal only once. Remember it as there might be late step count updates.
       if (!_walking) {
         correctWalkingStopped();
       }
+    });
+
+    _reportTimer = Timer.periodic(Duration(milliseconds: 50), (_) {
       // TODO: remove
       print(
         '${_x[0].toStringAsFixed(1)}\t${_x[1].toStringAsFixed(1)}\t${_x[2].toStringAsFixed(1)}\t${_x[3].toStringAsFixed(1)}\t${_x[4].toStringAsFixed(1)}\t${_x[5].toStringAsFixed(1)}\t${_x[6].toStringAsFixed(1)}',
@@ -321,5 +329,10 @@ class KalmanFilter {
     if (!_walking) {
       correctWalkingStopped();
     }
+  }
+
+  void cancel() {
+    _predictTimer.cancel();
+    _reportTimer.cancel();
   }
 }

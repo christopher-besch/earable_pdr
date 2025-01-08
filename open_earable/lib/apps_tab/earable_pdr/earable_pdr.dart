@@ -26,12 +26,14 @@ class EarablePDR extends StatefulWidget {
 }
 
 class _EarablePDRState extends State<EarablePDR> {
-  late KalmanFilter _kalmanFilter;
-  late StreamSubscription _earableIMUSubscription;
-  late StreamSubscription<BarometerEvent> _phoneBarometerSubscription;
-  late StreamSubscription<StepCount> _stepCountSubscription;
-  late StreamSubscription<PedestrianStatus> _pedestrianStateSubscription;
-  late StreamSubscription<CompassEvent> _compassSubscription;
+  var _pdrRunning = false;
+
+  KalmanFilter? _kalmanFilter;
+  StreamSubscription? _earableIMUSubscription;
+  StreamSubscription<BarometerEvent>? _phoneBarometerSubscription;
+  StreamSubscription<StepCount>? _stepCountSubscription;
+  StreamSubscription<PedestrianStatus>? _pedestrianStateSubscription;
+  StreamSubscription<CompassEvent>? _compassSubscription;
 
   static const int _pointsToRemember = 10000000000;
   List<DataPoint> _dataPoints = [];
@@ -39,6 +41,16 @@ class _EarablePDRState extends State<EarablePDR> {
   @override
   void initState() {
     super.initState();
+  }
+
+  @override
+  void dispose() {
+    super.dispose();
+    stopPdr();
+  }
+
+  void startPdr() {
+    _dataPoints = [];
 
     _kalmanFilter = KalmanFilter()
       ..stream.listen((dataPoint) {
@@ -57,7 +69,7 @@ class _EarablePDRState extends State<EarablePDR> {
       _earableIMUSubscription = widget.openEarable.sensorManager
           .subscribeToSensorData(0)
           .listen((data) {
-        _kalmanFilter.correctEarableCompass(
+        _kalmanFilter!.correctEarableCompass(
           // data["EULER"]["YAW"],
           data["EULER"]["ROLL"],
           data["EULER"]["PITCH"],
@@ -72,7 +84,7 @@ class _EarablePDRState extends State<EarablePDR> {
 
     // TODO: handle error
     _phoneBarometerSubscription = barometerEventStream().listen((event) {
-      _kalmanFilter.correctBarometer(event.pressure);
+      _kalmanFilter!.correctBarometer(event.pressure);
     });
 
     _checkLocationWhenInUsePermission().then((granted) {
@@ -84,7 +96,7 @@ class _EarablePDRState extends State<EarablePDR> {
       // TODO: handle error
       _compassSubscription = FlutterCompass.events!.listen((event) {
         if (event.heading != null) {
-          _kalmanFilter.correctPhoneCompass(
+          _kalmanFilter!.correctPhoneCompass(
             event.heading! * pi / 180,
             event.accuracy! * pi / 180,
           );
@@ -100,7 +112,7 @@ class _EarablePDRState extends State<EarablePDR> {
 
       // TODO: handle error
       _stepCountSubscription = Pedometer.stepCountStream.listen((event) {
-        _kalmanFilter.correctPedometer(
+        _kalmanFilter!.correctPedometer(
           Vector.fromList([event.steps], dtype: DType.float64),
         );
       })
@@ -111,7 +123,7 @@ class _EarablePDRState extends State<EarablePDR> {
       // TODO: handle error
       _pedestrianStateSubscription =
           Pedometer.pedestrianStatusStream.listen((event) {
-        _kalmanFilter.setIsWalking(event.status == 'walking');
+        _kalmanFilter!.setIsWalking(event.status == 'walking');
       })
             ..onError((e) {
               print(e);
@@ -119,65 +131,98 @@ class _EarablePDRState extends State<EarablePDR> {
     });
   }
 
-  @override
-  void dispose() {
-    super.dispose();
-    _earableIMUSubscription.cancel();
-    _phoneBarometerSubscription.cancel();
-    _stepCountSubscription.cancel();
-    _pedestrianStateSubscription.cancel();
-    _compassSubscription.cancel();
+  void stopPdr() {
+    if (_kalmanFilter != null) {
+      _kalmanFilter!.cancel();
+    }
+    if (_earableIMUSubscription != null) {
+      _earableIMUSubscription!.cancel();
+    }
+    if (_phoneBarometerSubscription != null) {
+      _phoneBarometerSubscription!.cancel();
+    }
+    if (_stepCountSubscription != null) {
+      _stepCountSubscription!.cancel();
+    }
+    if (_pedestrianStateSubscription != null) {
+      _pedestrianStateSubscription!.cancel();
+    }
+    if (_compassSubscription != null) {
+      _compassSubscription!.cancel();
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('PDR'),
-      ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+    return DefaultTabController(
+      initialIndex: 0,
+      length: 3,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('PDR'),
+          bottom: const TabBar(
+            tabs: <Widget>[
+              Tab(
+                icon: Icon(Icons.settings),
+              ),
+              Tab(
+                icon: Icon(Icons.map),
+              ),
+              Tab(
+                icon: Icon(Icons.line_axis),
+              ),
+            ],
+          ),
+        ),
+        body: TabBarView(
           children: <Widget>[
-            Text(
-              'PDR',
-              style: TextStyle(fontSize: 20),
-            ),
-            if (_dataPoints.isNotEmpty)
-              AspectRatio(
-                aspectRatio: 1,
-                child: Padding(
-                  padding: const EdgeInsets.only(bottom: 24.0),
-                  child: ScatterChart(
-                    ScatterChartData(
-                      scatterSpots: toScatterSpots(_dataPoints),
-                    ),
-                    // duration: Duration(milliseconds: 150), // Optional
-                    // curve: Curves.linear, // Optional
+            Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: <Widget>[
+                  Text(
+                    'Pedestrian Dead Reckoning',
+                    style: TextStyle(fontSize: 20),
                   ),
-                  // child: LineChart(
-                  //   LineChartData(
-                  //     // minX: 0,
-                  //     // maxX: 100,
-                  //     // minY: -1,
-                  //     // maxY: 1,
-                  //     // lineTouchData: const LineTouchData(enabled: false),
-                  //     // clipData: const FlClipData.all(),
-                  //     // gridData: const FlGridData(
-                  //     //   show: true,
-                  //     //   drawVerticalLine: false,
-                  //     // ),
-                  //     // borderData: FlBorderData(show: false),
-                  //     lineBarsData: toLineBarsData(_dataPoints),
-                  //     // titlesData: const FlTitlesData(
-                  //     //   show: false,
-                  //     // ),
-                  //   ),
-                  // ),
-                ),
-              )
-            else
-              Text('No Data', style: TextStyle(fontSize: 20)),
+                  IconButton(
+                    splashRadius: 20,
+                    icon: _pdrRunning
+                        ? Icon(Icons.pause)
+                        : Icon(Icons.play_arrow),
+                    onPressed: () {
+                      setState(() {
+                        _pdrRunning = !_pdrRunning;
+                        if (_pdrRunning) {
+                          startPdr();
+                        } else {
+                          stopPdr();
+                        }
+                      });
+                    },
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 24.0),
+              child: _dataPoints.isNotEmpty
+                  ? ScatterChart(
+                      ScatterChartData(
+                        scatterSpots: toScatterSpots(_dataPoints),
+                      ),
+                    )
+                  : Text('No Data', style: TextStyle(fontSize: 20)),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 24.0),
+              child: _dataPoints.isNotEmpty
+                  ? LineChart(
+                      LineChartData(
+                        lineBarsData: toLineBarsData(_dataPoints),
+                      ),
+                    )
+                  : Text('No Data', style: TextStyle(fontSize: 20)),
+            ),
           ],
         ),
       ),
