@@ -2,15 +2,10 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:open_earable/apps_tab/earable_pdr/chart.dart';
-import 'package:ml_linalg/linalg.dart';
 import 'package:sensors_plus/sensors_plus.dart';
-import 'package:open_earable/ble/ble_controller.dart';
-import 'package:open_earable/shared/earable_not_connected_warning.dart';
 import 'dart:async';
 import 'package:open_earable_flutter/open_earable_flutter.dart';
-import 'package:provider/provider.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter_compass/flutter_compass.dart';
 
 import 'package:pedometer/pedometer.dart';
@@ -172,9 +167,7 @@ class _EarablePDRState extends State<EarablePDR> {
           });
         }
 
-        _kalmanFilter!.correctPedometer(
-          Vector.fromList([event.steps], dtype: DType.float64),
-        );
+        _kalmanFilter!.correctPedometer(event.steps);
       })
         ..onError((e) {
           print('failed to subscribe to phone step counter');

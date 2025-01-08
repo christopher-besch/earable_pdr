@@ -49,6 +49,9 @@ class PDRMap extends StatelessWidget {
                 ScatterChartData(
                   scatterSpots: toScatterSpots(dataPoints!),
                   scatterTouchData: ScatterTouchData(enabled: false),
+                  titlesData: FlTitlesData(
+                    show: false,
+                  ),
                 ),
               ),
             ),

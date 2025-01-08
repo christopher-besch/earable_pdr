@@ -51,7 +51,7 @@ class KalmanFilter {
 
   // This stream outputs the current state of the kalman filter.
   final StreamController<DataPoint> _controller = StreamController<DataPoint>();
-  get stream => _controller.stream;
+  Stream<DataPoint> get stream => _controller.stream;
 
   KalmanFilter(double predictionRate, double dataRate, double stepLength) {
     _time = Stopwatch()..start();
@@ -72,7 +72,7 @@ class KalmanFilter {
         [0.0, 0.0, 1000, 0.0, 0.0, 0.0, 0.0],
         [0.0, 0.0, 0.0, 0.01, 0.0, 0.0, 0.0],
         [0.0, 0.0, 0.0, 0.0, 10, 0.0, 0.0],
-        [0.0, 0.0, 0.0, 0.0, 0.0, 1000.0, 0.0],
+        [0.0, 0.0, 0.0, 0.0, 0.0, 100000.0, 0.0],
         [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
       ],
       dtype: DType.float64,
@@ -93,7 +93,7 @@ class KalmanFilter {
     _predictTimer =
         Timer.periodic(Duration(microseconds: (_dt * 1000000).round()), (_) {
       predict();
-      // I'm getting the stopped signal only once. Remember it as there might be late step count updates.
+      // see the comment in setIsWalking
       if (!_walking) {
         correctWalkingStopped();
       }
@@ -101,7 +101,6 @@ class KalmanFilter {
 
     _reportTimer = Timer.periodic(
         Duration(microseconds: (_dataRate * 1000000).round()), (_) {
-      // TODO: remove
       print(
         '${_x[0].toStringAsFixed(1)}\t${_x[1].toStringAsFixed(1)}\t${_x[2].toStringAsFixed(1)}\t${_x[3].toStringAsFixed(1)}\t${_x[4].toStringAsFixed(1)}\t${_x[5].toStringAsFixed(1)}\t${_x[6].toStringAsFixed(1)}',
       );
@@ -122,7 +121,7 @@ class KalmanFilter {
     final F = Matrix.fromList(
       [
         [1.0, 0.0, 0.0, _dt * cos(_x[4]), 0.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0, _dt * sin(_x[4]), 0.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0, -_dt * sin(_x[4]), 0.0, 0.0, 0.0],
         [0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0],
         [0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
         [0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0],
@@ -160,17 +159,7 @@ class KalmanFilter {
       dtype: DType.float64,
     );
 
-    // kalman gain
-    final K = _P * H.transpose() * (H * _P * H.transpose() + R).inverse();
-    // update estimate
-    _x = _x + K * (z - H * _x);
-    // update estimate uncertainty
-    // TODO: don't calculate things twice
-    _P = (Matrix.identity(K.rowCount, dtype: DType.float64) - K * H) *
-            _P *
-            (Matrix.identity(K.rowCount, dtype: DType.float64) - K * H)
-                .transpose() +
-        K * R * K.transpose();
+    correct(z, H, R);
   }
 
   void correctPhoneCompass(
@@ -197,17 +186,7 @@ class KalmanFilter {
       dtype: DType.float64,
     );
 
-    // kalman gain
-    final K = _P * H.transpose() * (H * _P * H.transpose() + R).inverse();
-    // update estimate
-    _x = _x + K * (z - H * _x);
-    // update estimate uncertainty
-    // TODO: don't calculate things twice
-    _P = (Matrix.identity(K.rowCount, dtype: DType.float64) - K * H) *
-            _P *
-            (Matrix.identity(K.rowCount, dtype: DType.float64) - K * H)
-                .transpose() +
-        K * R * K.transpose();
+    correct(z, H, R);
   }
 
   // http://www.brokking.net/YMFC-32/YMFC-32_document_1.pdf
@@ -253,22 +232,11 @@ class KalmanFilter {
       dtype: DType.float64,
     );
 
-    // kalman gain
-    final K = _P * H.transpose() * (H * _P * H.transpose() + R).inverse();
-    // update estimate
-    _x = _x + K * (z - H * _x);
-    // update estimate uncertainty
-    // TODO: don't calculate things twice
-    _P = (Matrix.identity(K.rowCount, dtype: DType.float64) - K * H) *
-            _P *
-            (Matrix.identity(K.rowCount, dtype: DType.float64) - K * H)
-                .transpose() +
-        K * R * K.transpose();
+    correct(z, H, R);
   }
 
-  // measurement vector z:
-  // total steps until now
-  void correctPedometer(Vector z) {
+  void correctPedometer(int totalSteps) {
+    var z = Vector.fromList([totalSteps], dtype: DType.float64);
     // observation matrix
     var H = Matrix.fromList(
       [
@@ -279,22 +247,12 @@ class KalmanFilter {
     // measurement covariance
     var R = Matrix.fromList(
       [
-        [0.0],
+        [100.0],
       ],
       dtype: DType.float64,
     );
 
-    // kalman gain
-    final K = _P * H.transpose() * (H * _P * H.transpose() + R).inverse();
-    // update estimate
-    _x = _x + K * (z - H * _x);
-    // update estimate uncertainty
-    // TODO: don't calculate things twice
-    _P = (Matrix.identity(K.rowCount, dtype: DType.float64) - K * H) *
-            _P *
-            (Matrix.identity(K.rowCount, dtype: DType.float64) - K * H)
-                .transpose() +
-        K * R * K.transpose();
+    correct(z, H, R);
   }
 
   void correctWalkingStopped() {
@@ -314,23 +272,34 @@ class KalmanFilter {
       dtype: DType.float64,
     );
 
+    correct(z, H, R);
+  }
+
+  void correct(Vector z, Matrix H, Matrix R) {
     // kalman gain
     final K = _P * H.transpose() * (H * _P * H.transpose() + R).inverse();
     // update estimate
     _x = _x + K * (z - H * _x);
     // update estimate uncertainty
-    // TODO: don't calculate things twice
-    _P = (Matrix.identity(K.rowCount, dtype: DType.float64) - K * H) *
-            _P *
-            (Matrix.identity(K.rowCount, dtype: DType.float64) - K * H)
-                .transpose() +
-        K * R * K.transpose();
+    var iKH = (Matrix.identity(K.rowCount, dtype: DType.float64) - K * H);
+    _P = iKH * _P * iKH.transpose() + K * R * K.transpose();
   }
 
   void setIsWalking(bool walking) {
+    // The pedestrian status may change to 'standing' before the last step count update is received.
+    // In that case the last step count change makes the Kalman filter set the velocity to somethign non-zero.
+    // This is a problem when the users stops walking.
+    // To fix this we remember that the pedestrian status is 'standing' and reset the velocity in the predict timer.
+    // This on the other hand creates a problem when a 'walking' pedestrian status update is lost.
+    // This does happen, especially when starting the Kalman filter.
+    // To fix this we set the walking status back to walking after a short time period.
+    // This fixes both problems as stray step count updates don't happen after this time period.
     _walking = walking;
     if (!_walking) {
       correctWalkingStopped();
+      Future.delayed(const Duration(milliseconds: 3000), () {
+        _walking = true;
+      });
     }
   }
 
