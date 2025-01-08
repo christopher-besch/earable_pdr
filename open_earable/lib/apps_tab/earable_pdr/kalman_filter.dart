@@ -24,6 +24,7 @@ class KalmanFilter {
   // while the sensor input is asynchronous and thus polled at different time intervals the update step is performed synchronously
   // This isn't a Duration to make calculating with it easier.
   late double _dt;
+  late double _dataRate;
 
   final _earableAccuracy = 1000000.0;
 
@@ -52,12 +53,13 @@ class KalmanFilter {
   final StreamController<DataPoint> _controller = StreamController<DataPoint>();
   get stream => _controller.stream;
 
-  KalmanFilter() {
+  KalmanFilter(double predictionRate, double dataRate, double stepLength) {
     _time = Stopwatch()..start();
 
-    _dt = 0.05;
+    _dt = predictionRate;
+    _dataRate = dataRate;
     _x = Vector.fromList(
-      [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.82],
+      [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, stepLength],
       dtype: DType.float64,
     );
     // assume the starting position and velocity is correct -> high confidence
@@ -97,7 +99,8 @@ class KalmanFilter {
       }
     });
 
-    _reportTimer = Timer.periodic(Duration(milliseconds: 50), (_) {
+    _reportTimer = Timer.periodic(
+        Duration(microseconds: (_dataRate * 1000000).round()), (_) {
       // TODO: remove
       print(
         '${_x[0].toStringAsFixed(1)}\t${_x[1].toStringAsFixed(1)}\t${_x[2].toStringAsFixed(1)}\t${_x[3].toStringAsFixed(1)}\t${_x[4].toStringAsFixed(1)}\t${_x[5].toStringAsFixed(1)}\t${_x[6].toStringAsFixed(1)}',

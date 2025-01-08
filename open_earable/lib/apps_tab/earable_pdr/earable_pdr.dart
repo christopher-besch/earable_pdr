@@ -27,13 +27,22 @@ class EarablePDR extends StatefulWidget {
 
 class _EarablePDRState extends State<EarablePDR> {
   var _pdrRunning = false;
+  var _predictionRate = 0.05;
+  var _kalmanDataRate = 0.1;
+  var _stepLength = 0.82;
 
   KalmanFilter? _kalmanFilter;
+
   StreamSubscription? _earableIMUSubscription;
+  var _earableOnline = false;
   StreamSubscription<BarometerEvent>? _phoneBarometerSubscription;
+  var _phoneBarometerOnline = false;
   StreamSubscription<StepCount>? _stepCountSubscription;
+  var _phoneStepCounterOnline = false;
   StreamSubscription<PedestrianStatus>? _pedestrianStateSubscription;
+  var _phonePedestrianStateOnline = false;
   StreamSubscription<CompassEvent>? _compassSubscription;
+  var _phoneCompassOnline = false;
 
   static const int _pointsToRemember = 10000000000;
   List<DataPoint> _dataPoints = [];
@@ -52,7 +61,7 @@ class _EarablePDRState extends State<EarablePDR> {
   void startPdr() {
     _dataPoints = [];
 
-    _kalmanFilter = KalmanFilter()
+    _kalmanFilter = KalmanFilter(_predictionRate, _kalmanDataRate, _stepLength)
       ..stream.listen((dataPoint) {
         setState(() {
           _dataPoints.add(dataPoint);
@@ -61,14 +70,23 @@ class _EarablePDRState extends State<EarablePDR> {
         });
       });
 
+    // earable //
     if (widget.openEarable.bleManager.connected) {
       print("connected to earable");
+
       OpenEarableSensorConfig config =
           OpenEarableSensorConfig(sensorId: 0, samplingRate: 30, latency: 0);
       widget.openEarable.sensorManager.writeSensorConfig(config);
       _earableIMUSubscription = widget.openEarable.sensorManager
           .subscribeToSensorData(0)
           .listen((data) {
+        if (!_earableOnline) {
+          print("earable online");
+          setState(() {
+            _earableOnline = true;
+          });
+        }
+
         _kalmanFilter!.correctEarableCompass(
           // data["EULER"]["YAW"],
           data["EULER"]["ROLL"],
@@ -77,61 +95,108 @@ class _EarablePDRState extends State<EarablePDR> {
           data["MAG"]["Y"],
           data["MAG"]["Z"],
         );
-      });
+      })
+        ..onError((e) {
+          print("failed to subscribe to earable IMU");
+        });
     } else {
-      print("failed to connect to earable");
+      print("earable not connected");
     }
 
-    // TODO: handle error
+    // phone barometer //
     _phoneBarometerSubscription = barometerEventStream().listen((event) {
+      if (!_phoneBarometerOnline) {
+        print("phone barometer online");
+        setState(() {
+          _phoneBarometerOnline = true;
+        });
+      }
       _kalmanFilter!.correctBarometer(event.pressure);
-    });
+    })
+      ..onError((e) {
+        print('failed to subscribe to phone barometer');
+        print(e);
+      });
 
+    // phone compass //
     _checkLocationWhenInUsePermission().then((granted) {
       if (!granted) {
-        print("TODO: this is bad");
+        print("permission to use phone compass not granted");
+        return;
       }
-      print("lets go");
 
-      // TODO: handle error
       _compassSubscription = FlutterCompass.events!.listen((event) {
         if (event.heading != null) {
+          if (!_phoneCompassOnline) {
+            print("phone compass online");
+            setState(() {
+              _phoneCompassOnline = true;
+            });
+          }
+
           _kalmanFilter!.correctPhoneCompass(
             event.heading! * pi / 180,
             event.accuracy! * pi / 180,
           );
         }
-      });
+      })
+        ..onError((e) {
+          print('failed to subscribe to phone compass');
+          print(e);
+        });
     });
 
+    // phone pedometer //
     _checkActivityRecognitionPermission().then((granted) {
       if (!granted) {
-        print("TODO: this is bad");
+        print("permission to use phone pedometer not granted");
+        return;
       }
-      print("lets go");
 
-      // TODO: handle error
       _stepCountSubscription = Pedometer.stepCountStream.listen((event) {
+        if (!_phoneStepCounterOnline) {
+          print("phone step counter online");
+          setState(() {
+            _phoneStepCounterOnline = true;
+          });
+        }
+
         _kalmanFilter!.correctPedometer(
           Vector.fromList([event.steps], dtype: DType.float64),
         );
       })
         ..onError((e) {
+          print('failed to subscribe to phone step counter');
           print(e);
         });
 
-      // TODO: handle error
       _pedestrianStateSubscription =
           Pedometer.pedestrianStatusStream.listen((event) {
+        if (!_phonePedestrianStateOnline) {
+          print("phone pedestrian status online");
+          setState(() {
+            _phonePedestrianStateOnline = true;
+          });
+        }
+
         _kalmanFilter!.setIsWalking(event.status == 'walking');
       })
             ..onError((e) {
+              print('failed to subscribe to phone pedestrian status');
               print(e);
             });
     });
   }
 
   void stopPdr() {
+    print('stopping pdr');
+
+    _earableOnline = false;
+    _phoneBarometerOnline = false;
+    _phoneStepCounterOnline = false;
+    _phonePedestrianStateOnline = false;
+    _phoneCompassOnline = false;
+
     if (_kalmanFilter != null) {
       _kalmanFilter!.cancel();
     }
@@ -200,29 +265,39 @@ class _EarablePDRState extends State<EarablePDR> {
                       });
                     },
                   ),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 24.0, right: 24.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        OnlineStatusText(
+                          isOnline: _earableOnline,
+                          subSystemName: 'Earable IMU',
+                        ),
+                        OnlineStatusText(
+                          isOnline: _phoneBarometerOnline,
+                          subSystemName: 'Phone Barometer',
+                        ),
+                        OnlineStatusText(
+                          isOnline: _phoneStepCounterOnline,
+                          subSystemName: 'Phone Step Counter',
+                        ),
+                        OnlineStatusText(
+                          isOnline: _phonePedestrianStateOnline,
+                          subSystemName: 'Phone Pedestrian Status',
+                        ),
+                        OnlineStatusText(
+                          isOnline: _phoneCompassOnline,
+                          subSystemName: 'Phone Compass',
+                        ),
+                      ],
+                    ),
+                  ),
                 ],
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.only(bottom: 24.0),
-              child: _dataPoints.isNotEmpty
-                  ? ScatterChart(
-                      ScatterChartData(
-                        scatterSpots: toScatterSpots(_dataPoints),
-                      ),
-                    )
-                  : Text('No Data', style: TextStyle(fontSize: 20)),
-            ),
-            Padding(
-              padding: const EdgeInsets.only(bottom: 24.0),
-              child: _dataPoints.isNotEmpty
-                  ? LineChart(
-                      LineChartData(
-                        lineBarsData: toLineBarsData(_dataPoints),
-                      ),
-                    )
-                  : Text('No Data', style: TextStyle(fontSize: 20)),
-            ),
+            PDRMap(dataPoints: _dataPoints),
+            PDRPlot(dataPoints: _dataPoints),
           ],
         ),
       ),
@@ -249,5 +324,40 @@ class _EarablePDRState extends State<EarablePDR> {
     }
 
     return granted;
+  }
+}
+
+class OnlineStatusText extends StatelessWidget {
+  final _onlineColor = const Color(0xff00ff00);
+  final _offlineColor = const Color(0xffff0000);
+
+  final String? subSystemName;
+  final bool? isOnline;
+
+  const OnlineStatusText({super.key, this.subSystemName, this.isOnline});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Text(
+          '$subSystemName: ',
+          textAlign: TextAlign.right,
+          style: TextStyle(
+            fontSize: 20,
+          ),
+        ),
+        Expanded(
+            child: Text(
+          isOnline! ? 'ONLINE' : 'OFFLINE',
+          textAlign: TextAlign.right,
+          style: TextStyle(
+            fontSize: 20,
+            color: isOnline! ? _onlineColor : _offlineColor,
+            fontWeight: FontWeight.bold,
+          ),
+        )),
+      ],
+    );
   }
 }
