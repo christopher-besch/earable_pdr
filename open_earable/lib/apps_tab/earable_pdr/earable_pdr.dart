@@ -246,33 +246,37 @@ class _EarablePDRState extends State<EarablePDR> {
         body: TabBarView(
           children: <Widget>[
             Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: <Widget>[
-                  Text(
-                    'Pedestrian Dead Reckoning',
-                    style: TextStyle(fontSize: 20),
-                  ),
-                  IconButton(
-                    splashRadius: 20,
-                    icon: _pdrRunning
-                        ? Icon(Icons.pause)
-                        : Icon(Icons.play_arrow),
-                    onPressed: () {
-                      setState(() {
-                        _pdrRunning = !_pdrRunning;
-                        if (_pdrRunning) {
-                          startPdr();
-                        } else {
-                          stopPdr();
-                        }
-                      });
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  Padding(
-                    padding: const EdgeInsets.only(left: 24.0, right: 24.0),
-                    child: Column(
+              child: Padding(
+                padding: const EdgeInsets.only(left: 24.0, right: 24.0),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: <Widget>[
+                    Text(
+                      'Pedestrian Dead Reckoning',
+                      style: TextStyle(fontSize: 20),
+                    ),
+                    Text(
+                      'Hold your phone infront of you in your hand and keep your head upright as you walk. This provides the most accurate positioning.\nAlso, enable the permissions: Location, Nearby devices and Physical activity',
+                      style: TextStyle(fontSize: 12),
+                    ),
+                    IconButton(
+                      splashRadius: 20,
+                      icon: _pdrRunning
+                          ? Icon(Icons.pause)
+                          : Icon(Icons.play_arrow),
+                      onPressed: () {
+                        setState(() {
+                          _pdrRunning = !_pdrRunning;
+                          if (_pdrRunning) {
+                            startPdr();
+                          } else {
+                            stopPdr();
+                          }
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    Column(
                       children: [
                         TextField(
                           controller: _predictionRateController,
@@ -312,11 +316,8 @@ class _EarablePDRState extends State<EarablePDR> {
                         ),
                       ],
                     ),
-                  ),
-                  const SizedBox(height: 24),
-                  Padding(
-                    padding: const EdgeInsets.only(left: 24.0, right: 24.0),
-                    child: Column(
+                    const SizedBox(height: 24),
+                    Column(
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
                         OnlineStatusText(
@@ -341,8 +342,8 @@ class _EarablePDRState extends State<EarablePDR> {
                         ),
                       ],
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
             PDRMap(dataPoints: _dataPoints),
