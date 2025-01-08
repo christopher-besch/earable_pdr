@@ -25,6 +25,8 @@ class KalmanFilter {
   // This isn't a Duration to make calculating with it easier.
   late double _dt;
 
+  bool _walking = true;
+
   // current state:
   // position_x
   // position_y
@@ -82,8 +84,14 @@ class KalmanFilter {
 
     Timer.periodic(Duration(microseconds: (_dt * 1000000).round()), (_) {
       predict();
+      // I'm gettin the stopped signal only once. Remember it as there might be late step count updates.
+      if (!_walking) {
+        correctWalkingStopped();
+      }
       // TODO: remove
-      print(_x);
+      print(
+        '${_x[0].toStringAsFixed(1)}\t${_x[1].toStringAsFixed(1)}\t${_x[2].toStringAsFixed(1)}\t${_x[3].toStringAsFixed(1)}\t${_x[4].toStringAsFixed(1)}\t${_x[5].toStringAsFixed(1)}\t${_x[6].toStringAsFixed(1)}',
+      );
       _controller.sink.add(
         DataPoint(
           _time.elapsed,
@@ -127,7 +135,7 @@ class KalmanFilter {
     // observation matrix
     var H = Matrix.fromList(
       [
-        [0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
+        [0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0],
       ],
       dtype: DType.float64,
     );
@@ -152,32 +160,13 @@ class KalmanFilter {
         K * R * K.transpose();
   }
 
-  void correctHeading(
-    double yaw,
-    // http://www.brokking.net/YMFC-32/YMFC-32_document_1.pdf
-    // double roll,
-    // double pitch,
-    // double magnetometerX,
-    // double magnetometerY,
-    // double magnetometerZ,
+  void correctPhoneCompass(
+    double heading,
+    double accuracy,
   ) {
-    // double magnetometerXCorrected = magnetometerX * cos(pitch) +
-    //     magnetometerY * sin(roll) * sin(pitch) -
-    //     magnetometerZ * cos(roll) * sin(pitch);
-    // double magnetometerYCorrected =
-    //     magnetometerY * cos(roll) + magnetometerZ * sin(roll);
-    // var z = Vector.fromList(
-    //   [atan2(-magnetometerYCorrected, magnetometerXCorrected)],
-    //   dtype: DType.float64,
-    // );
-    // print(z[0]);
-    // print('${magnetometerXCorrected}\t${magnetometerYCorrected}');
-    // print('${magnetometerX}\t${magnetometerY}\t${magnetometerZ}');
-    // print('${roll}\t${pitch}');
-    // observation matrix
-
+    // print('$heading\t$accuracy');
     var z = Vector.fromList(
-      [yaw],
+      [heading],
       dtype: DType.float64,
     );
 
@@ -190,7 +179,63 @@ class KalmanFilter {
     // measurement covariance
     var R = Matrix.fromList(
       [
-        [0.01],
+        [20],
+      ],
+      dtype: DType.float64,
+    );
+
+    // kalman gain
+    final K = _P * H.transpose() * (H * _P * H.transpose() + R).inverse();
+    // update estimate
+    _x = _x + K * (z - H * _x);
+    // update estimate uncertainty
+    // TODO: don't calculate things twice
+    _P = (Matrix.identity(K.rowCount, dtype: DType.float64) - K * H) *
+            _P *
+            (Matrix.identity(K.rowCount, dtype: DType.float64) - K * H)
+                .transpose() +
+        K * R * K.transpose();
+  }
+
+  // http://www.brokking.net/YMFC-32/YMFC-32_document_1.pdf
+  void correctEarableCompass(
+    // double yaw,
+    double roll,
+    double pitch,
+    double magnetometerX,
+    double magnetometerY,
+    double magnetometerZ,
+  ) {
+    // var z = Vector.fromList(
+    //   [yaw],
+    //   dtype: DType.float64,
+    // );
+
+    double magnetometerXCorrected = magnetometerX * cos(pitch) +
+        magnetometerY * sin(roll) * sin(pitch) -
+        magnetometerZ * cos(roll) * sin(pitch);
+    double magnetometerYCorrected =
+        magnetometerY * cos(roll) + magnetometerZ * sin(roll);
+    var z = Vector.fromList(
+      [atan2(-magnetometerYCorrected, magnetometerXCorrected)],
+      dtype: DType.float64,
+    );
+    // print(z[0]);
+    // print('${magnetometerXCorrected}\t${magnetometerYCorrected}');
+    // print('${magnetometerX}\t${magnetometerY}\t${magnetometerZ}');
+    // print('${roll}\t${pitch}');
+
+    // observation matrix
+    var H = Matrix.fromList(
+      [
+        [0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0],
+      ],
+      dtype: DType.float64,
+    );
+    // measurement covariance
+    var R = Matrix.fromList(
+      [
+        [1000000],
       ],
       dtype: DType.float64,
     );
@@ -269,23 +314,10 @@ class KalmanFilter {
         K * R * K.transpose();
   }
 
-  // measurement vector z:
-  // phone accelerometer x
-  // phone accelerometer y
-  // phone accelerometer z
-  void correctAcceleration(Vector z) {
-    // TODO: remove
-    // // TODO: make sure this isn't actually calculating the inverse
-    // // kalman gain
-    // final K = _P * _H.transpose() * (_H * _P * _H.transpose() + _R).inverse();
-    // // update estimate
-    // _x = _x + K * (z - _H * _x);
-    // // update estimate uncertainty
-    // // TODO: don't calculate things twice
-    // _P = (Matrix.identity(K.rowCount, dtype: DType.float64) - K * _H) *
-    //         _P *
-    //         (Matrix.identity(K.rowCount, dtype: DType.float64) - K * _H)
-    //             .transpose() +
-    //     K * _R * K.transpose();
+  void setIsWalking(bool walking) {
+    _walking = walking;
+    if (!_walking) {
+      correctWalkingStopped();
+    }
   }
 }

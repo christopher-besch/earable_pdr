@@ -10,6 +10,7 @@ import 'package:open_earable_flutter/open_earable_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:flutter_compass/flutter_compass.dart';
 
 import 'package:pedometer/pedometer.dart';
 
@@ -30,8 +31,9 @@ class _EarablePDRState extends State<EarablePDR> {
   late StreamSubscription<BarometerEvent> _phoneBarometerSubscription;
   late StreamSubscription<StepCount> _stepCountSubscription;
   late StreamSubscription<PedestrianStatus> _pedestrianStateSubscription;
+  late StreamSubscription<CompassEvent> _compassSubscription;
 
-  static const int _pointsToRemember = 100;
+  static const int _pointsToRemember = 10000000000;
   List<DataPoint> _dataPoints = [];
 
   @override
@@ -55,13 +57,13 @@ class _EarablePDRState extends State<EarablePDR> {
       _earableIMUSubscription = widget.openEarable.sensorManager
           .subscribeToSensorData(0)
           .listen((data) {
-        _kalmanFilter.correctHeading(
-          data["EULER"]["YAW"],
-          // data["EULER"]["ROLL"],
-          // data["EULER"]["PITCH"],
-          // data["MAG"]["X"],
-          // data["MAG"]["Y"],
-          // data["MAG"]["Z"],
+        _kalmanFilter.correctEarableCompass(
+          // data["EULER"]["YAW"],
+          data["EULER"]["ROLL"],
+          data["EULER"]["PITCH"],
+          data["MAG"]["X"],
+          data["MAG"]["Y"],
+          data["MAG"]["Z"],
         );
       });
     } else {
@@ -71,6 +73,23 @@ class _EarablePDRState extends State<EarablePDR> {
     // TODO: handle error
     _phoneBarometerSubscription = barometerEventStream().listen((event) {
       _kalmanFilter.correctBarometer(event.pressure);
+    });
+
+    _checkLocationWhenInUsePermission().then((granted) {
+      if (!granted) {
+        print("TODO: this is bad");
+      }
+      print("lets go");
+
+      // TODO: handle error
+      _compassSubscription = FlutterCompass.events!.listen((event) {
+        if (event.heading != null) {
+          _kalmanFilter.correctPhoneCompass(
+            event.heading! * pi / 180,
+            event.accuracy! * pi / 180,
+          );
+        }
+      });
     });
 
     _checkActivityRecognitionPermission().then((granted) {
@@ -92,9 +111,7 @@ class _EarablePDRState extends State<EarablePDR> {
       // TODO: handle error
       _pedestrianStateSubscription =
           Pedometer.pedestrianStatusStream.listen((event) {
-        if (event.status == 'stopped') {
-          _kalmanFilter.correctWalkingStopped();
-        }
+        _kalmanFilter.setIsWalking(event.status == 'walking');
       })
             ..onError((e) {
               print(e);
@@ -109,6 +126,7 @@ class _EarablePDRState extends State<EarablePDR> {
     _phoneBarometerSubscription.cancel();
     _stepCountSubscription.cancel();
     _pedestrianStateSubscription.cancel();
+    _compassSubscription.cancel();
   }
 
   @override
@@ -127,28 +145,35 @@ class _EarablePDRState extends State<EarablePDR> {
             ),
             if (_dataPoints.isNotEmpty)
               AspectRatio(
-                aspectRatio: 1.5,
+                aspectRatio: 1,
                 child: Padding(
                   padding: const EdgeInsets.only(bottom: 24.0),
-                  child: LineChart(
-                    LineChartData(
-                      // minX: 0,
-                      // maxX: 100,
-                      // minY: -1,
-                      // maxY: 1,
-                      // lineTouchData: const LineTouchData(enabled: false),
-                      // clipData: const FlClipData.all(),
-                      // gridData: const FlGridData(
-                      //   show: true,
-                      //   drawVerticalLine: false,
-                      // ),
-                      // borderData: FlBorderData(show: false),
-                      lineBarsData: toLineBarsData(_dataPoints),
-                      // titlesData: const FlTitlesData(
-                      //   show: false,
-                      // ),
+                  child: ScatterChart(
+                    ScatterChartData(
+                      scatterSpots: toScatterSpots(_dataPoints),
                     ),
+                    // duration: Duration(milliseconds: 150), // Optional
+                    // curve: Curves.linear, // Optional
                   ),
+                  // child: LineChart(
+                  //   LineChartData(
+                  //     // minX: 0,
+                  //     // maxX: 100,
+                  //     // minY: -1,
+                  //     // maxY: 1,
+                  //     // lineTouchData: const LineTouchData(enabled: false),
+                  //     // clipData: const FlClipData.all(),
+                  //     // gridData: const FlGridData(
+                  //     //   show: true,
+                  //     //   drawVerticalLine: false,
+                  //     // ),
+                  //     // borderData: FlBorderData(show: false),
+                  //     lineBarsData: toLineBarsData(_dataPoints),
+                  //     // titlesData: const FlTitlesData(
+                  //     //   show: false,
+                  //     // ),
+                  //   ),
+                  // ),
                 ),
               )
             else
@@ -164,6 +189,17 @@ class _EarablePDRState extends State<EarablePDR> {
 
     if (!granted) {
       granted = await Permission.activityRecognition.request() ==
+          PermissionStatus.granted;
+    }
+
+    return granted;
+  }
+
+  Future<bool> _checkLocationWhenInUsePermission() async {
+    bool granted = await Permission.locationWhenInUse.isGranted;
+
+    if (!granted) {
+      granted = await Permission.locationWhenInUse.request() ==
           PermissionStatus.granted;
     }
 
