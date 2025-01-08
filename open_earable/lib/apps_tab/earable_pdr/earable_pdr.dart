@@ -1,5 +1,6 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:open_earable/apps_tab/earable_pdr/chart.dart';
 import 'package:ml_linalg/linalg.dart';
 import 'package:sensors_plus/sensors_plus.dart';
@@ -27,9 +28,6 @@ class EarablePDR extends StatefulWidget {
 
 class _EarablePDRState extends State<EarablePDR> {
   var _pdrRunning = false;
-  var _predictionRate = 0.05;
-  var _kalmanDataRate = 0.1;
-  var _stepLength = 0.82;
 
   KalmanFilter? _kalmanFilter;
 
@@ -44,12 +42,22 @@ class _EarablePDRState extends State<EarablePDR> {
   StreamSubscription<CompassEvent>? _compassSubscription;
   var _phoneCompassOnline = false;
 
+  final TextEditingController _stepLengthController = TextEditingController();
+  final TextEditingController _predictionRateController =
+      TextEditingController();
+  final TextEditingController _kalmanDataRateController =
+      TextEditingController();
+
   static const int _pointsToRemember = 10000000000;
   List<DataPoint> _dataPoints = [];
 
   @override
   void initState() {
     super.initState();
+
+    _predictionRateController.text = 0.05.toString();
+    _kalmanDataRateController.text = 0.1.toString();
+    _stepLengthController.text = 0.82.toString();
   }
 
   @override
@@ -61,8 +69,11 @@ class _EarablePDRState extends State<EarablePDR> {
   void startPdr() {
     _dataPoints = [];
 
-    _kalmanFilter = KalmanFilter(_predictionRate, _kalmanDataRate, _stepLength)
-      ..stream.listen((dataPoint) {
+    _kalmanFilter = KalmanFilter(
+      double.tryParse(_predictionRateController.text)!,
+      double.tryParse(_kalmanDataRateController.text)!,
+      double.tryParse(_stepLengthController.text)!,
+    )..stream.listen((dataPoint) {
         setState(() {
           _dataPoints.add(dataPoint);
           _dataPoints = _dataPoints
@@ -265,6 +276,51 @@ class _EarablePDRState extends State<EarablePDR> {
                       });
                     },
                   ),
+                  const SizedBox(height: 12),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 24.0, right: 24.0),
+                    child: Column(
+                      children: [
+                        TextField(
+                          controller: _predictionRateController,
+                          decoration: InputDecoration(
+                            labelText: 'Prediction Rate',
+                          ),
+                          keyboardType: TextInputType.number,
+                          inputFormatters: <TextInputFormatter>[
+                            FilteringTextInputFormatter.allow(
+                              RegExp(r'[.,0-9]'),
+                            ),
+                          ],
+                        ),
+                        TextField(
+                          controller: _kalmanDataRateController,
+                          decoration: InputDecoration(
+                            labelText: 'Data Rate',
+                          ),
+                          keyboardType: TextInputType.number,
+                          inputFormatters: <TextInputFormatter>[
+                            FilteringTextInputFormatter.allow(
+                              RegExp(r'[.,0-9]'),
+                            ),
+                          ],
+                        ),
+                        TextField(
+                          controller: _stepLengthController,
+                          decoration: InputDecoration(
+                            labelText: 'Step Length',
+                          ),
+                          keyboardType: TextInputType.number,
+                          inputFormatters: <TextInputFormatter>[
+                            FilteringTextInputFormatter.allow(
+                              RegExp(r'[.,0-9]'),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 24),
                   Padding(
                     padding: const EdgeInsets.only(left: 24.0, right: 24.0),
                     child: Column(
@@ -348,15 +404,16 @@ class OnlineStatusText extends StatelessWidget {
           ),
         ),
         Expanded(
-            child: Text(
-          isOnline! ? 'ONLINE' : 'OFFLINE',
-          textAlign: TextAlign.right,
-          style: TextStyle(
-            fontSize: 20,
-            color: isOnline! ? _onlineColor : _offlineColor,
-            fontWeight: FontWeight.bold,
+          child: Text(
+            isOnline! ? 'ONLINE' : 'OFFLINE',
+            textAlign: TextAlign.right,
+            style: TextStyle(
+              fontSize: 20,
+              color: isOnline! ? _onlineColor : _offlineColor,
+              fontWeight: FontWeight.bold,
+            ),
           ),
-        )),
+        ),
       ],
     );
   }

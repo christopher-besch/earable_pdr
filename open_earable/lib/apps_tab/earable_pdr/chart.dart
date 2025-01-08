@@ -11,7 +11,7 @@ class PDRMap extends StatelessWidget {
   late final double _minHeight;
   late final double _maxHeight;
 
-  final _minHeightColor = const Color(0xff0000ff);
+  final _minHeightColor = const Color(0xff00ffff);
   final _maxHeightColor = const Color(0xffff0000);
   final _lowerPercentile = 0.1;
   final _upperPercentile = 0.9;
