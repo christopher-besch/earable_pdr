@@ -277,9 +277,12 @@ class KalmanFilter {
 
   void correct(Vector z, Matrix H, Matrix R) {
     // kalman gain
-    final K = _P * H.transpose() * (H * _P * H.transpose() + R).inverse();
+    final pHT = _P * H.transpose();
+    final K = pHT * (H * pHT + R).inverse();
+
     // update estimate
     _x = _x + K * (z - H * _x);
+
     // update estimate uncertainty
     var iKH = (Matrix.identity(K.rowCount, dtype: DType.float64) - K * H);
     _P = iKH * _P * iKH.transpose() + K * R * K.transpose();
