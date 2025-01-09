@@ -253,11 +253,14 @@ class _EarablePDRState extends State<EarablePDR> {
                   children: <Widget>[
                     Text(
                       'Pedestrian Dead Reckoning',
-                      style: TextStyle(fontSize: 20),
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     Text(
                       'Hold your phone infront of you in your hand and keep your head upright as you walk. This provides the most accurate positioning.\nAlso, enable the permissions: Location, Nearby devices and Physical activity',
-                      style: TextStyle(fontSize: 12),
+                      style: TextStyle(fontSize: 18),
                     ),
                     IconButton(
                       splashRadius: 20,
