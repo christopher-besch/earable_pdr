@@ -1,9 +1,7 @@
 # earable_pdr
 Pedestrian Dead Reckoning with [Open Earable](https://open-earable.teco.edu).
 
-![walking around a block](./images/walking_block.png)
-
-![walking a line with curves](./images/walking_line.png)
+![walking around a block](./images/example.png)
 
 Positioning without GPS or terrestrial positioning systems, i.e., underground, is difficult.
 Pedestrian dead reckoning can solve this problem by using a known starting point and integrating velocity and acceleration.
