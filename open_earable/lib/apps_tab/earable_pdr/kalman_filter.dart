@@ -28,6 +28,7 @@ class DataPoint {
 // The Kalman Filter combines the different sensor readings to provide the likeliest current system state.
 // Time is given in seconds, length in meters, speed in meters per second, pressure in hectopascal and angles in radians.
 // The variable names x, P, Q, F, z, H, R and K are the standard for Kalman Filters and thus used here.
+// see: https://www.kalmanfilter.net/multiSummary.html
 class KalmanFilter {
   // time interval between update steps in seconds
   // While the sensor input is asynchronous and thus polled at different time intervals the update step is performed synchronously.
@@ -236,7 +237,7 @@ class KalmanFilter {
     double magnetometerZ,
   ) {
     // tilt correct the magnetometer readings using the accelerometer
-    // see http://www.brokking.net/YMFC-32/YMFC-32_document_1.pdf
+    // see: http://www.brokking.net/YMFC-32/YMFC-32_document_1.pdf
     double magnetometerXCorrected = magnetometerX * cos(pitch) +
         magnetometerY * sin(roll) * sin(pitch) -
         magnetometerZ * cos(roll) * sin(pitch);
