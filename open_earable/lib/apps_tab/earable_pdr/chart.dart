@@ -1,13 +1,16 @@
 import 'dart:math';
-
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/cupertino.dart';
 
 import 'kalman_filter.dart';
 
+// the main map where the app shows the walked path
 class PDRMap extends StatelessWidget {
   final List<DataPoint>? dataPoints;
 
+  // A linear interpolation between two colors is used to show the height of any point on the map.
+  // These values represent the lower and upper percentile of the height.
+  // These values are mapped to the extreme colors.
   late final double _minHeight;
   late final double _maxHeight;
 
@@ -18,10 +21,12 @@ class PDRMap extends StatelessWidget {
 
   PDRMap({super.key, this.dataPoints}) {
     if (dataPoints != null && dataPoints!.isNotEmpty) {
+      // calculate the lower and upper height percentile //
       var heights = dataPoints!.map((dataPoint) {
         return dataPoint.position[2];
       }).toList();
       heights.sort();
+
       final lowerPercentilePoint = (_lowerPercentile * heights.length)
           .toInt()
           .clamp(0, heights.length - 1);
@@ -40,6 +45,7 @@ class PDRMap extends StatelessWidget {
     }
     return Column(
       children: [
+        // actual map
         Expanded(
           child: AspectRatio(
             aspectRatio: 1.0,
@@ -57,6 +63,7 @@ class PDRMap extends StatelessWidget {
             ),
           ),
         ),
+        // legend
         Text(
           'x: ${dataPoints!.last.position[0].toStringAsFixed(2)}m',
           style: TextStyle(
@@ -101,6 +108,7 @@ class PDRMap extends StatelessWidget {
     );
   }
 
+  // convert Kalman Filter DataPoints into ScatterSpots to be consumed by the map
   List<ScatterSpot> toScatterSpots(List<DataPoint> dataPoints) {
     return dataPoints.map((dataPoint) {
       return ScatterSpot(
@@ -114,6 +122,7 @@ class PDRMap extends StatelessWidget {
     }).toList();
   }
 
+  // linearly map DataPoints according to their height to colors
   Color spotColor(DataPoint dataPoint) {
     return Color.lerp(
       _minHeightColor,
@@ -123,6 +132,7 @@ class PDRMap extends StatelessWidget {
   }
 }
 
+// a plot to show parts of the Kalman Filter's system state that can't easily be displayed on the map
 class PDRPlot extends StatelessWidget {
   final _velocityColor = const Color(0xffff0000);
   final _headingColor = const Color(0xff00ff00);
@@ -138,6 +148,7 @@ class PDRPlot extends StatelessWidget {
     }
     return Column(
       children: [
+        // the actual plot
         Expanded(
           child: Padding(
             padding: const EdgeInsets.only(bottom: 24.0),
@@ -149,6 +160,7 @@ class PDRPlot extends StatelessWidget {
             ),
           ),
         ),
+        // the legend
         Text(
           'velocity: ${dataPoints!.last.velocity.toStringAsFixed(2)}m/s',
           style: TextStyle(
@@ -170,8 +182,10 @@ class PDRPlot extends StatelessWidget {
     );
   }
 
+  // convert the DataPoints to bars to be consumed by the plot
   List<LineChartBarData> toLineBarsData(List<DataPoint> dataPoints) {
     var lineBars = [
+      // velocity graph
       LineChartBarData(
         spots: dataPoints.map((dataPoint) {
           return FlSpot(
@@ -186,6 +200,7 @@ class PDRPlot extends StatelessWidget {
         isCurved: false,
         color: _velocityColor,
       ),
+      // heading graph
       LineChartBarData(
         spots: dataPoints.map((dataPoint) {
           return FlSpot(

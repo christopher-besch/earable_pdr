@@ -1,17 +1,17 @@
+import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:open_earable/apps_tab/earable_pdr/chart.dart';
-import 'package:sensors_plus/sensors_plus.dart';
-import 'dart:async';
-import 'package:open_earable_flutter/open_earable_flutter.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter_compass/flutter_compass.dart';
-
+import 'package:open_earable_flutter/open_earable_flutter.dart';
 import 'package:pedometer/pedometer.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:sensors_plus/sensors_plus.dart';
 
+import 'chart.dart';
 import 'kalman_filter.dart';
 
+// an app to plot your walked path without GPS
 class EarablePDR extends StatefulWidget {
   final OpenEarable openEarable;
 
@@ -22,10 +22,13 @@ class EarablePDR extends StatefulWidget {
 }
 
 class _EarablePDRState extends State<EarablePDR> {
+  // is the Kalman Filter updating the state right now
   var _pdrRunning = false;
 
   KalmanFilter? _kalmanFilter;
 
+  // the subscriptions of the sensors
+  // they are considered online once they have sent at least one point of data
   StreamSubscription? _earableIMUSubscription;
   var _earableOnline = false;
   StreamSubscription<BarometerEvent>? _phoneBarometerSubscription;
@@ -43,13 +46,17 @@ class _EarablePDRState extends State<EarablePDR> {
   final TextEditingController _kalmanDataRateController =
       TextEditingController();
 
+  // How many Kalman Filter DataPoints should be displayed?
   static const int _pointsToRemember = 10000000000;
+  // the past DataPoints
+  // This is stored here and not in the Kalman Filter as the Kalman Filter doesn't need them.
   List<DataPoint> _dataPoints = [];
 
   @override
   void initState() {
     super.initState();
 
+    // sensible default values
     _predictionRateController.text = 0.05.toString();
     _kalmanDataRateController.text = 0.1.toString();
     _stepLengthController.text = 0.82.toString();
@@ -61,22 +68,25 @@ class _EarablePDRState extends State<EarablePDR> {
     stopPdr();
   }
 
+  // start the Kalman Filter
   void startPdr() {
     _dataPoints = [];
 
+    // create the Kalman Filter
     _kalmanFilter = KalmanFilter(
       double.tryParse(_predictionRateController.text)!,
       double.tryParse(_kalmanDataRateController.text)!,
       double.tryParse(_stepLengthController.text)!,
     )..stream.listen((dataPoint) {
         setState(() {
+          // add a new point of data when it arrives
           _dataPoints.add(dataPoint);
           _dataPoints = _dataPoints
               .sublist(max(0, _dataPoints.length - _pointsToRemember));
         });
       });
 
-    // earable //
+    // connect to the earable IMU //
     if (widget.openEarable.bleManager.connected) {
       print("connected to earable");
 
@@ -86,6 +96,7 @@ class _EarablePDRState extends State<EarablePDR> {
       _earableIMUSubscription = widget.openEarable.sensorManager
           .subscribeToSensorData(0)
           .listen((data) {
+        // consider the sensor online now
         if (!_earableOnline) {
           print("earable online");
           setState(() {
@@ -93,8 +104,8 @@ class _EarablePDRState extends State<EarablePDR> {
           });
         }
 
-        _kalmanFilter!.correctEarableCompass(
-          // data["EULER"]["YAW"],
+        // Use the sensor reading to update the system state.
+        _kalmanFilter!.correctWithEarableCompass(
           data["EULER"]["ROLL"],
           data["EULER"]["PITCH"],
           data["MAG"]["X"],
@@ -109,22 +120,23 @@ class _EarablePDRState extends State<EarablePDR> {
       print("earable not connected");
     }
 
-    // phone barometer //
+    // connect to the phone barometer //
     _phoneBarometerSubscription = barometerEventStream().listen((event) {
+      // consider the sensor online now
       if (!_phoneBarometerOnline) {
         print("phone barometer online");
         setState(() {
           _phoneBarometerOnline = true;
         });
       }
-      _kalmanFilter!.correctBarometer(event.pressure);
+      _kalmanFilter!.correctWithBarometer(event.pressure);
     })
       ..onError((e) {
         print('failed to subscribe to phone barometer');
         print(e);
       });
 
-    // phone compass //
+    // connect to the phone compass //
     _checkLocationWhenInUsePermission().then((granted) {
       if (!granted) {
         print("permission to use phone compass not granted");
@@ -133,6 +145,7 @@ class _EarablePDRState extends State<EarablePDR> {
 
       _compassSubscription = FlutterCompass.events!.listen((event) {
         if (event.heading != null) {
+          // consider the sensor online now
           if (!_phoneCompassOnline) {
             print("phone compass online");
             setState(() {
@@ -140,7 +153,8 @@ class _EarablePDRState extends State<EarablePDR> {
             });
           }
 
-          _kalmanFilter!.correctPhoneCompass(
+          // convert degrees to radians
+          _kalmanFilter!.correctWithPhoneCompass(
             event.heading! * pi / 180,
             event.accuracy! * pi / 180,
           );
@@ -152,14 +166,16 @@ class _EarablePDRState extends State<EarablePDR> {
         });
     });
 
-    // phone pedometer //
+    // connect to the phone pedometer //
     _checkActivityRecognitionPermission().then((granted) {
       if (!granted) {
         print("permission to use phone pedometer not granted");
         return;
       }
 
+      // step counter //
       _stepCountSubscription = Pedometer.stepCountStream.listen((event) {
+        // consider the sensor online now
         if (!_phoneStepCounterOnline) {
           print("phone step counter online");
           setState(() {
@@ -167,15 +183,17 @@ class _EarablePDRState extends State<EarablePDR> {
           });
         }
 
-        _kalmanFilter!.correctPedometer(event.steps);
+        _kalmanFilter!.correctWithPedometer(event.steps);
       })
         ..onError((e) {
           print('failed to subscribe to phone step counter');
           print(e);
         });
 
+      // pedestrian status //
       _pedestrianStateSubscription =
           Pedometer.pedestrianStatusStream.listen((event) {
+        // consider the sensor online now
         if (!_phonePedestrianStateOnline) {
           print("phone pedestrian status online");
           setState(() {
@@ -192,6 +210,7 @@ class _EarablePDRState extends State<EarablePDR> {
     });
   }
 
+  // disable the Kalman Filter without deleting the data points
   void stopPdr() {
     print('stopping pdr');
 
@@ -245,6 +264,7 @@ class _EarablePDRState extends State<EarablePDR> {
         ),
         body: TabBarView(
           children: <Widget>[
+            // the settings
             Center(
               child: Padding(
                 padding: const EdgeInsets.only(left: 24.0, right: 24.0),
@@ -262,8 +282,9 @@ class _EarablePDRState extends State<EarablePDR> {
                       'Hold your phone infront of you in your hand and keep your head upright as you walk. This provides the most accurate positioning.\nAlso, enable the permissions: Location, Nearby devices and Physical activity',
                       style: TextStyle(fontSize: 18),
                     ),
+                    // start/stop button
                     IconButton(
-                      splashRadius: 20,
+                      splashRadius: 40,
                       icon: _pdrRunning
                           ? Icon(Icons.pause)
                           : Icon(Icons.play_arrow),
@@ -279,6 +300,7 @@ class _EarablePDRState extends State<EarablePDR> {
                       },
                     ),
                     const SizedBox(height: 12),
+                    // input fields
                     Column(
                       children: [
                         TextField(
@@ -320,6 +342,7 @@ class _EarablePDRState extends State<EarablePDR> {
                       ],
                     ),
                     const SizedBox(height: 24),
+                    // online/offline status for each sensor
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
@@ -349,7 +372,9 @@ class _EarablePDRState extends State<EarablePDR> {
                 ),
               ),
             ),
+            // the map
             PDRMap(dataPoints: _dataPoints),
+            // the plot
             PDRPlot(dataPoints: _dataPoints),
           ],
         ),
@@ -357,6 +382,8 @@ class _EarablePDRState extends State<EarablePDR> {
     );
   }
 
+  // ask of the ActivityRecognitionPermission if required
+  // return true iff granted
   Future<bool> _checkActivityRecognitionPermission() async {
     bool granted = await Permission.activityRecognition.isGranted;
 
@@ -368,6 +395,8 @@ class _EarablePDRState extends State<EarablePDR> {
     return granted;
   }
 
+  // ask of the LocationWhenInUsePermission if required
+  // return true iff granted
   Future<bool> _checkLocationWhenInUsePermission() async {
     bool granted = await Permission.locationWhenInUse.isGranted;
 
@@ -380,6 +409,7 @@ class _EarablePDRState extends State<EarablePDR> {
   }
 }
 
+// displays whether a sensor is online or offline
 class OnlineStatusText extends StatelessWidget {
   final _onlineColor = const Color(0xff00ff00);
   final _offlineColor = const Color(0xffff0000);
@@ -400,6 +430,7 @@ class OnlineStatusText extends StatelessWidget {
             fontSize: 20,
           ),
         ),
+        // expand so that the online/offline labels are vertically aligned
         Expanded(
           child: Text(
             isOnline! ? 'ONLINE' : 'OFFLINE',
