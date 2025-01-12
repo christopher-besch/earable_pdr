@@ -8,6 +8,14 @@ Pedestrian dead reckoning can solve this problem by using a known starting point
 While many pedestrian dead reckoning applications place inertial-systems on the user's boots or chest, the Earable is worn in the user's ear and the phone in her pocket.
 Therefore, the Flutter App shows that accurate positioning can be achieved without special hardware.
 
+## Features
+- understand the geometry of you route (e.g. how does the walked path inside an IKEA store actually look like)
+- don't rely on GPS (e.g. underground)
+- variable data rates independent of sensor polling rates
+- gracefully handle sensor failure (i.e. BLE dropout, smartphone without barometer, ...)
+- adapt to changing sensor accuracies
+- Kalman Filter State also includes accuracy
+
 ## Used Sensors
 
 Two inertial systems provide sensor readings to the app, one in the user's pocket and another in the user's ear.
@@ -26,3 +34,5 @@ While the prediction step is performed every constant time interval, partial upd
 
 The state model assumes the heading and velocity to be static.
 Changes in these variables are interpreted as normally distributed noise.
+
+The Kalman Filter gracefully handles dropouts in the BLE connection with the earable or smartphones without barometers.
