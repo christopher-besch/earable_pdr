@@ -38,3 +38,7 @@ Changes in the velocity are interpreted as normally distributed noise ,i.e., the
 With this architecture earable_pdr incorporates both the heading measurement by the Earable and the phone's compass.
 Therefore, earable_pdr would even work without an active connection to the Earable (at least momentarily).
 Though, the best results are still achieved with an intact Earable connection.
+
+## Disclaimers
+earable_pdr has only been tested on Android devices.
+Please use a recent high-end Android device as lower end models' sensors often lack the accuracy needed for this application.
