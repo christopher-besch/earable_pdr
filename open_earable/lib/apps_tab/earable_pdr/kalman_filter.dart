@@ -194,7 +194,7 @@ class KalmanFilter {
 
   // called whenever the phone's compass produces a new measurement
   // heading: the current compass heading in radians
-  // accuracy: the accuracy of the current compass heading in radians
+  // accuracy: the accuracy of the current compass heading in radians (this value is ignored right now)
   void correctWithPhoneCompass(
     double heading,
     double accuracy,
@@ -215,7 +215,8 @@ class KalmanFilter {
     var R = Matrix.fromList(
       [
         // increase the variance a little to smooth out the heading (i.e. add a low-pass filter)
-        [20 * heading],
+        // The accuracy provided by the phone can't actually be trusted and produces strange value spikes.
+        [20],
       ],
       dtype: DType.float64,
     );
