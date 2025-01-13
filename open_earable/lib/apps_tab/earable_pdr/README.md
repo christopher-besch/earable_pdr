@@ -15,6 +15,7 @@ Therefore, the Flutter App shows that accurate positioning can be achieved witho
 - gracefully handle sensor failure (i.e. BLE dropout, smartphone without barometer, ...)
 - adapt to changing sensor accuracies
 - Kalman Filter state also includes accuracy (i.e. earable_pdr could tell the consuming application how accurate the position estimate is)
+- use barometer to show height and incline of path
 
 ## Used Sensors
 Two inertial systems provide sensor readings to the app, one in the user's pocket and another in the user's ear.
